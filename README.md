@@ -1,7 +1,8 @@
 # MetaJNI
 A header only JNI wrapper that makes using jni safer and easier while having almost no performance impact.
 This branch uses cmake for the example and supports both Windows and Linux (you will have to install X11 dev library).\
-An older version that uses visual studio 2022 and works only on windows is available here: https://github.com/Lefraudeur/MetaJNI/tree/old-vs22-windows
+An older version that uses visual studio 2022 and works only on windows is available here:\
+https://github.com/Lefraudeur/MetaJNI/tree/old-vs22-windows
 
 ## Advantages over raw JNI:
 - [Syntax](#showcase) as close as possible to direct java code
