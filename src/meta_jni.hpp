@@ -726,7 +726,7 @@ namespace jni
 		}
 		
 		template<class... method_parameters_type>
-		static klass new_object(jni::constructor<method_parameters_type...> klass::*constructor, const method_parameters_type&... method_parameters)
+		static klass new_object(jni::constructor<method_parameters_type...> members_type::*constructor, const method_parameters_type&... method_parameters)
 		{
 			klass tmp{}; //lmao
 			return klass{jni::get_env()->NewObject(get_cached_jclass<klass>(), jmethodID(tmp.*constructor), std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...)};
