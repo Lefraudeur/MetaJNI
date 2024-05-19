@@ -140,3 +140,10 @@ I try to find the best compromise between the easiness of the mappings and of th
 
 While c++ templates are fun, useful, and very powerful, \
 coding another program that writes repetitive code for you would give way more possibilites
+
+### Building example dll
+Use visual studio or install cmake and run :
+```
+cmake -B ./Build
+cmake --build Build --target MetaJNI --config Release
+```
