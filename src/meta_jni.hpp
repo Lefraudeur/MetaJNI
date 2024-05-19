@@ -1,4 +1,5 @@
 #pragma once
+
 #ifdef _WIN32
 	#include <Windows.h>
 #elif defined(__linux__)
@@ -12,24 +13,15 @@
 #include <vector>
 #include <mutex>
 #include <shared_mutex>
+#include <cstdint>
 
 #define assertm(exp, msg) assert(((void)msg, exp))
 
-#define BEGIN_KLASS_DEF(unobf_klass_name, obf_klass_name)												\
-struct unobf_klass_name##_members;																		\
-using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>;						\
-struct unobf_klass_name##_members : public jni::empty_members											\
-{																										\
-	unobf_klass_name##_members(jclass owner_klass, jobject object_instance, bool is_global_ref) : jni::empty_members(owner_klass, object_instance, is_global_ref) {}
+#define BEGIN_KLASS_DEF(unobf_klass_name, obf_klass_name) struct unobf_klass_name##_members; using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>; struct unobf_klass_name##_members : public jni::empty_members	{ unobf_klass_name##_members(jclass owner_klass, jobject object_instance, bool is_global_ref) : jni::empty_members(owner_klass, object_instance, is_global_ref) {}
 
 #define END_KLASS_DEF()	};
 
-#define BEGIN_KLASS_DEF_EX(unobf_klass_name, obf_klass_name, inherit_from)								\
-struct unobf_klass_name##_members;																		\
-using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>;						\
-struct unobf_klass_name##_members : public inherit_from##_members										\
-{																										\
-	unobf_klass_name##_members(jclass owner_klass, jobject object_instance, bool is_global_ref) : inherit_from##_members(owner_klass, object_instance, is_global_ref) {}
+#define BEGIN_KLASS_DEF_EX(unobf_klass_name, obf_klass_name, inherit_from) struct unobf_klass_name##_members; using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>; struct unobf_klass_name##_members : public inherit_from##_members { unobf_klass_name##_members(jclass owner_klass, jobject object_instance, bool is_global_ref) : inherit_from##_members(owner_klass, object_instance, is_global_ref) {}
 
 
 namespace jni
@@ -186,12 +178,6 @@ namespace jni
 
 	template<typename T, typename... U> inline constexpr bool is_any_of_type = (std::is_same_v<T, U> || ...);
 	template<typename T> inline constexpr bool is_jni_primitive_type = is_any_of_type<T, jboolean, jbyte, jchar, jshort, jint, jfloat, jlong, jdouble>;
-
-	template<class T, template<class...> class U>
-	inline constexpr bool is_instance_of_v = false;
-
-	template<template<class...> class U, class... Vs>
-	inline constexpr bool is_instance_of_v<U<Vs...>, U> = true;
 
 
 	template<typename klass_type> struct jclass_cache
@@ -715,6 +701,20 @@ namespace jni
 	};
 
 
+	template<class... method_parameters_type>
+	using constructor = method<void, "<init>", jni::NOT_STATIC, method_parameters_type...>;
+
+	/*
+	template<class T> struct remove_member_pointer
+	{
+		typedef T type;
+	};
+	template<class C, class T> struct remove_member_pointer<T C::*>
+	{
+		typedef T type;
+	};
+	*/
+
 
 	template<string_litteral class_name, class members_type>
 	class klass : public members_type
@@ -723,6 +723,13 @@ namespace jni
 		klass(jobject object_instance = nullptr, bool is_global_ref = false) :
 			members_type(get_cached_jclass<klass>(), object_instance, is_global_ref) //be careful order of initialization matters
 		{
+		}
+		
+		template<class... method_parameters_type>
+		static klass new_object(jni::constructor<method_parameters_type...> klass::*constructor, const method_parameters_type&... method_parameters)
+		{
+			klass tmp{}; //lmao
+			return klass{jni::get_env()->NewObject(get_cached_jclass<klass>(), jmethodID(tmp.*constructor), std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...)};
 		}
 
 		static constexpr auto get_name()

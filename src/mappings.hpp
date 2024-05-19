@@ -1,4 +1,5 @@
 #pragma once
+
 #include "meta_jni.hpp"
 #include<string>
 
@@ -32,7 +33,11 @@ namespace maps
 	END_KLASS_DEF()
 	BEGIN_KLASS_DEF_EX(List, "java/util/List", Collection)
 	END_KLASS_DEF()
+	BEGIN_KLASS_DEF(URL, "java/net/URL")
+		jni::constructor<String> constructor{ *this };
 
+		jni::method<String, "toString"> toString{ *this };
+	END_KLASS_DEF()
 
 
 	BEGIN_KLASS_DEF(Entity, "pk")

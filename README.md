@@ -92,6 +92,8 @@ Start by creating a header file like `mappings.hpp`, it's also recommended to pu
 jni::shutdown();
 ```
 
+### Useful Info :
+
 #### Array support
 Places that accept a `jni::klass<>` usually also accept a `jni::array<element_type>`, where element_type can be any of:\
 `jboolean, jbyte, jchar, jshort, jint, jfloat, jlong, jdouble, jni::array<element_type>, jni::klass<> (defined by BEGIN_KLASS_DEF)`
@@ -110,3 +112,31 @@ Simply pass `true` to the `jni::klass` or `jni::array` constructor. For example:
 ```C++
 maps::Minecraft global_theMinecraft = maps::Minecraft(local_theMinecraft, true);
 ```
+
+#### Object creation
+- #### Define a constructor
+	A `jni::constructor<parameterType1, parameterType2, parameterTypeN...>` is basically the same as `jni::method<void, "<init>", jni::NOT_STATIC, parameterType1, parameterType2, parameterTypeN...>`\
+	add it to your klass definition in the mappings, for example :
+	```
+	BEGIN_KLASS_DEF(URL, "java/net/URL")
+		jni::constructor<String> constructor{ *this }; // the java/net/URL constructor takes a String as parameter
+	END_KLASS_DEF()
+	```
+- #### Construct a new object
+	New objects can be created using `CLASS_NAME_::new_object(&CLASS_NAME_::constructor, parameters...)` \
+	Where CLASS_NAME is a jni::klass<> type defined by BEGIN_KLASS_DEF, for example :
+	```
+	maps::URL url = maps::URL::new_object(&maps::URL::constructor, String.create("http://www.example.com/docs/resource1.html"));
+	```
+
+#### Warning / Remarks / Downsides...
+The way you create new objects or call static methods can be a bit confusing :\
+when you construct a jni::klass, no java object is created on the jvm, it is simply a wrapper for an existing jobject,\
+if you don't give any jobject to the jni::klass constructor, then it defaults to nullptr so you can only call static java methods.\
+`maps::Minecraft Minecraft{};` \
+This line doesn't create a Minecraft object on the jvm. \
+It is not really natural, but  I can't think of a better way... \
+I try to find the best compromise between the easiness of the mappings and of the actual code
+
+While c++ templates are fun, useful, and very powerful, \
+coding another program that writes repetitive code for you would give way more possibilites
