@@ -245,7 +245,7 @@ namespace jni
 		{
 		}
 
-		std::vector<array_element_type> to_vector()
+		std::vector<array_element_type> to_vector() const
 		{
 			jsize length = get_length();
 			std::vector<array_element_type> vector{};
@@ -306,7 +306,7 @@ namespace jni
 			return vector;
 		}
 
-		jsize get_length()
+		jsize get_length() const
 		{
 			return get_env()->GetArrayLength((jarray)object_instance);
 		}
@@ -464,7 +464,7 @@ namespace jni
 			}
 		}
 
-		auto get() //usable only if field is not static (requires an instance of the owner class
+		auto get() const
 		{
 			if constexpr (!is_jni_primitive_type<field_type>)
 			{
@@ -582,12 +582,12 @@ namespace jni
 			assertm(id, (const char*)(concat<"failed to find methodID: ", get_name(), " ", get_signature()>()));
 		}
 
-		auto operator()(const method_parameters_type&... method_parameters)
+		auto operator()(const method_parameters_type&... method_parameters) const
 		{
 			return call(method_parameters...);
 		}
 
-		auto call(const method_parameters_type&... method_parameters)
+		auto call(const method_parameters_type&... method_parameters) const
 		{
 			if constexpr (std::is_void_v<method_return_type>)
 			{
