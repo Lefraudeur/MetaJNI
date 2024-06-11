@@ -146,8 +146,9 @@ namespace jni
 		{
 			if (is_global_ref)
 			{
-				clear_ref();
+				jobject old_instance = object_instance; // set before deleting, eg if operator= is called on itself or on an object_wrapper with the same object_instance
 				object_instance = (other.object_instance ? get_env()->NewGlobalRef(other.object_instance) : nullptr);
+				if (old_instance) get_env()->DeleteGlobalRef(old_instance);
 			}
 			else
 				object_instance = other.object_instance;
