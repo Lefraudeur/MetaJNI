@@ -133,13 +133,13 @@ maps::Minecraft global_theMinecraft = maps::Minecraft(local_theMinecraft, true);
 Often you will have 2 klass definitions that depend from eachother, or you simply don't want to bother about the order in which you define your klasses.\
 One solution is to separe klass declarations and definitions, for example:
 ```C++
-	KLASS_DECLARATION(ClassLoader, "java/lang/ClassLoader");
-	// other klass declarations...
+KLASS_DECLARATION(ClassLoader, "java/lang/ClassLoader");
+// other klass declarations...
 
-	BEGIN_KLASS_MEMBERS(ClassLoader)
-		// jni::field, jni::method...
-	END_KLASS_MEMBERS()
-	// other klass definitions...
+BEGIN_KLASS_MEMBERS(ClassLoader)
+	// jni::field, jni::method...
+END_KLASS_MEMBERS()
+// other klass definitions...
 ```
 
 ### Custom FindClass
