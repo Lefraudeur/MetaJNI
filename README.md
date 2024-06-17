@@ -1,4 +1,4 @@
-# MetaJNI
+﻿# MetaJNI
 A header only JNI wrapper that makes using jni safer and easier while having almost no performance impact.
 This branch uses cmake for the example and supports both Windows and Linux (you will have to install X11 dev library).\
 An older version that uses visual studio 2022 and works only on windows is available here:\
@@ -129,6 +129,24 @@ maps::Minecraft global_theMinecraft = maps::Minecraft(local_theMinecraft, true);
 	maps::URL url = maps::URL::new_object(&maps::URL::constructor, String.create("http://www.example.com/docs/resource1.html"));
 	```
 
+#### Separe klass declaration and definition
+Often you will have 2 klass definitions that depend from eachother, or you simply don't want to bother about the order in which you define your klasses.\
+One solution is to separe klass declarations and definitions, for example:
+```C++
+	KLASS_DECLARATION(ClassLoader, "java/lang/ClassLoader");
+	// other klass declarations...
+
+	BEGIN_KLASS_MEMBERS(ClassLoader)
+		// jni::field, jni::method...
+	END_KLASS_MEMBERS()
+	// other klass definitions...
+```
+
+### Custom FindClass
+MetaJNI uses jni_env->FindClass to find its classes, however FindClass may use the wrong classLoader\
+You can provide an additional implementation of FindClass using `jni::set_custom_find_class`\
+⚠️Make sure the jobjects (eg. classLoader references) your method uses live until the call to `jni::shutdown`
+
 #### Warning / Remarks / Downsides...
 The way you create new objects or call static methods can be a bit confusing :\
 when you construct a jni::klass, no java object is created on the jvm, it is simply a wrapper for an existing jobject,\
@@ -137,6 +155,9 @@ if you don't give any jobject to the jni::klass constructor, then it defaults to
 This line doesn't create a Minecraft object on the jvm. \
 It is not really natural, but  I can't think of a better way... \
 I try to find the best compromise between the easiness of the mappings and of the actual code
+
+Using platform dependent C api for TLS / thread management instead of thread_local / std::thread can be questionable,\
+however these features do not work well with dll injection (or may require extra steps I don't know about)
 
 While c++ templates are fun, useful, and very powerful, \
 coding another program that writes repetitive code for you would give way more possibilites

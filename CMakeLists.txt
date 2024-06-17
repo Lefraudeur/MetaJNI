@@ -11,10 +11,8 @@ endif()
 
 project ("MetaJNI")
 
-file(GLOB APP_SOURCES "src/*.cpp" "src/*.c" "src/*.hpp" "src/*.h" "src/*.hpp" "src/*.h")
-
 # Add source to this project's executable.
-add_library(MetaJNI SHARED ${APP_SOURCES})
+add_library(MetaJNI SHARED "src/main.cpp")
 
 
 target_include_directories(MetaJNI PUBLIC "include/jni")

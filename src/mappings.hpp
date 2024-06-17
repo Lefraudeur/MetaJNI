@@ -9,7 +9,7 @@ namespace maps
 	END_KLASS_DEF()
 
 	BEGIN_KLASS_DEF(String, "java/lang/String")
-		String create(const char* str)
+		static String create(const char* str)
 		{
 			return String(jni::get_env()->NewStringUTF(str));
 		}
@@ -70,4 +70,9 @@ namespace maps
 		jni::method<void, "aw", jni::NOT_STATIC> clickMouse{ *this };
 		jni::method<void, "a", jni::NOT_STATIC, jint, jint> resize{ *this };
 	END_KLASS_DEF()
+
+	KLASS_DECLARATION(ClassLoader, "java/lang/ClassLoader");
+
+	BEGIN_KLASS_MEMBERS(ClassLoader)
+	END_KLASS_MEMBERS()
 }

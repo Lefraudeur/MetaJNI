@@ -52,7 +52,6 @@ static void mainThread(void* dll)
 
     maps::Minecraft Minecraft{};
     maps::EntityPlayerSP EntityPlayerSP{};
-    maps::String String{};
 
     std::cout << "injected\n";
     std::cout << Minecraft.get_name() << '\n';
@@ -68,7 +67,7 @@ static void mainThread(void* dll)
     theMinecraft.resize(800, 600);
 
     maps::EntityPlayerSP thePlayer = theMinecraft.thePlayer.get();
-    thePlayer.sendChatMessage(String.create("test"));
+    thePlayer.sendChatMessage(maps::String::create("test"));
     maps::String clientBrand = thePlayer.getClientBrand.call();
     std::cout << clientBrand.to_string() << '\n';
     jni::array<maps::EntityPlayerSP> testArray = jni::array<maps::EntityPlayerSP>::create({});
@@ -82,7 +81,7 @@ static void mainThread(void* dll)
         std::cout << p.getName().to_string() << ' ' << p.getHealth() << '\n';
     }
 
-    maps::URL url = maps::URL::new_object(&maps::URL::constructor, String.create("http://www.example.com/docs/resource1.html"));
+    maps::URL url = maps::URL::new_object(&maps::URL::constructor, maps::String::create("http://www.example.com/docs/resource1.html"));
     std::cout << url.toString().to_string() << '\n';
 
     env->PopLocalFrame(nullptr);

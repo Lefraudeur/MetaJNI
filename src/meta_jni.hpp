@@ -28,6 +28,10 @@
 
 #define BEGIN_KLASS_DEF_EX(unobf_klass_name, obf_klass_name, inherit_from) struct unobf_klass_name##_members; using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>; struct unobf_klass_name##_members : public inherit_from##_members { unobf_klass_name##_members(jclass owner_klass, jobject object_instance, bool is_global_ref) : inherit_from##_members(owner_klass, object_instance, is_global_ref) {}
 
+#define KLASS_DECLARATION(unobf_klass_name, obf_klass_name) struct unobf_klass_name##_members; using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>;
+#define BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, inherit_from) struct unobf_klass_name##_members : public inherit_from##_members { unobf_klass_name##_members(jclass owner_klass, jobject object_instance, bool is_global_ref) : inherit_from##_members(owner_klass, object_instance, is_global_ref) {}
+#define BEGIN_KLASS_MEMBERS(unobf_klass_name) BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, jni::empty)
+#define END_KLASS_MEMBERS()	};
 
 namespace jni
 {
