@@ -103,15 +103,20 @@ To iterate over an array easily, you can convert it to an std::vector with `.to_
 You can also allocate a new array with `jni::array<element_type>::create({elements...})`.
 
 #### Reference management
-MetaJNI does not provide any method to manage local references, they are still managed as usual :\
-they follow the lifetime of a JNI frame which can be pushed and popped with\
-`env->PushLocalFrame(local_ref_count);` and `env->PopLocalFrame(nullptr);`.
+JNI references are managed as usual, they follow the lifetime of a JNI frame which can be pushed and popped with\
+`env->PushLocalFrame(local_ref_count);` and `env->PopLocalFrame(nullptr);`\
+You can also create a `jni::frame` object, which will push a frame in its constructor, and pop it in its destructor.
 
 If you need a reference to live across JNI frames or threads, MetaJNI provides an easy way to create global references that will be destroyed once the corresponding C++ object is destroyed :\
 Simply pass `true` to the `jni::klass` or `jni::array` constructor. For example:
 ```C++
 maps::Minecraft global_theMinecraft = maps::Minecraft(local_theMinecraft, true);
 ```
+⚠️Without passing true to the constructor, the `jni::klass` will store the jobject reference as is, without managing its lifetime. This can lead to rare issues for example in this situation:
+```
+local_theMinecraft = global_theMinecraft;
+```
+In this situation local_theMinecraft stores the same jobject as global_theMinecraft, so local_theMinecraft becomes invalid once global_theMinecraft is destroyed.
 
 #### Object creation
 - #### Define a constructor
