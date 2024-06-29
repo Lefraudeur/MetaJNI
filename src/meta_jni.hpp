@@ -159,6 +159,11 @@ namespace jni
 			return *this;
 		}
 
+		bool operator==(const object_wrapper& other) const
+		{
+			return is_same_object(other);
+		}
+
 		bool is_same_object(const object_wrapper& other) const
 		{
 			return get_env()->IsSameObject(object_instance, other.object_instance) == JNI_TRUE;
@@ -587,6 +592,11 @@ namespace jni
 				if constexpr (!is_static)
 					return get_env()->GetDoubleField(m.object_instance, id);
 			}
+		}
+
+		operator field_type() const
+		{
+			return get();
 		}
 
 		static constexpr auto get_name()
