@@ -126,6 +126,40 @@ namespace jni
 		return string_litteral(concatenated);
 	}
 
+	template<typename klass_type> struct jclass_cache
+	{
+		inline static std::shared_mutex mutex{};
+		inline static jclass value = nullptr;
+	};
+
+	template<typename klass_type> inline jclass get_cached_jclass() //findClass
+	{
+		JNIEnv* env = get_env();
+		if (!env) return nullptr;
+		jclass& cached = jclass_cache<klass_type>::value;
+		{
+			std::shared_lock shared_lock{ jclass_cache<klass_type>::mutex };
+			if (cached) return cached;
+		}
+		jclass local = env->FindClass(klass_type::get_name());
+		if (env->ExceptionCheck())
+			env->ExceptionClear();
+		jclass found = (jclass)env->NewGlobalRef(local);
+		if (!found && _custom_find_class)
+			found = (jclass)env->NewGlobalRef(_custom_find_class(klass_type::get_name()));
+		assertm(found, (const char*)(concat<"failed to find class: ", klass_type::get_name()>()));
+		{
+			std::unique_lock unique_lock{ jclass_cache<klass_type>::mutex };
+			cached = found;
+		}
+		{
+			std::lock_guard lock{ _refs_to_delete_mutex };
+			_refs_to_delete.push_back(found);
+		}
+		return found;
+	}
+
+
 	class object_wrapper
 	{
 	public:
@@ -214,44 +248,8 @@ namespace jni
 		jclass owner_klass;
 	};
 
-	template<string_litteral class_name, class fields_type = empty_members> class klass;
-
 	template<typename T, typename... U> inline constexpr bool is_any_of_type = (std::is_same_v<T, U> || ...);
 	template<typename T> inline constexpr bool is_jni_primitive_type = is_any_of_type<T, jboolean, jbyte, jchar, jshort, jint, jfloat, jlong, jdouble>;
-
-
-	template<typename klass_type> struct jclass_cache
-	{
-		inline static std::shared_mutex mutex{};
-		inline static jclass value = nullptr;
-	};
-
-	template<typename klass_type> inline jclass get_cached_jclass() //findClass
-	{
-		JNIEnv* env = get_env();
-		if (!env) return nullptr;
-		jclass& cached = jclass_cache<klass_type>::value;
-		{
-			std::shared_lock shared_lock{ jclass_cache<klass_type>::mutex };
-			if (cached) return cached;
-		}
-		jclass local = env->FindClass(klass_type::get_name());
-		if (env->ExceptionCheck())
-			env->ExceptionClear();
-		jclass found = (jclass)env->NewGlobalRef(local);
-		if (!found && _custom_find_class)
-			found = (jclass)env->NewGlobalRef(_custom_find_class(klass_type::get_name()));
-		assertm(found, (const char*)(concat<"failed to find class: ", klass_type::get_name()>()));
-		{
-			std::unique_lock unique_lock{ jclass_cache<klass_type>::mutex };
-			cached = found;
-		}
-		{
-			std::lock_guard lock{ _refs_to_delete_mutex };
-			_refs_to_delete.push_back(found);
-		}
-		return found;
-	}
 
 	enum is_static_t : bool
 	{
