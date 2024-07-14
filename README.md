@@ -30,10 +30,10 @@ std::string thePlayer_clientBrand = Minecraft.theMinecraft.get().thePlayer.get()
 
 //And more...
 ```
-See: [main.cpp](https://github.com/Lefraudeur/MetaJNI/blob/master/main.cpp)
+See: [main.cpp](https://github.com/Lefraudeur/MetaJNI/blob/master/src/main.cpp)
 
 ## Get Started
-The only file you have to include in your project is [meta_jni.hpp](https://github.com/Lefraudeur/MetaJNI/blob/master/meta_jni.hpp)
+The only file you have to include in your project is [meta_jni.hpp](https://github.com/Lefraudeur/MetaJNI/blob/master/src/meta_jni.hpp)
 Other files are part of the exemple project, it's a dll injectable into minecraft vanilla 1.8.9 to showcase and test all features,\
 but the **library does not depend on minecraft** and can be used anywhere you would use normal jni.
 ### Setup JNIEnv* :
@@ -43,7 +43,7 @@ So **for each thread** that uses the library, you have to call
 jni::set_thread_env(env);
 ```
 ### Create mappings :
-See: [mappings.hpp](https://github.com/Lefraudeur/MetaJNI/blob/master/mappings.hpp)
+See: [mappings.hpp](https://github.com/Lefraudeur/MetaJNI/blob/master/src/mappings.hpp)
 Start by creating a header file like `mappings.hpp`, it's also recommended to put further definitions in a namespace like `maps::`
 - #### Define a class
 	```C++
