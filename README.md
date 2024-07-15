@@ -1,6 +1,7 @@
 ﻿# MetaJNI
 A header only JNI wrapper that makes using jni safer and easier while having almost no performance impact.
 This branch uses cmake for the example and supports both Windows and Linux (you will have to install X11 dev library).
+C++ 20 required
 
 ## Advantages over raw JNI:
 - [Syntax](#showcase) as close as possible to direct java code
@@ -30,10 +31,10 @@ std::string thePlayer_clientBrand = Minecraft.theMinecraft.get().thePlayer.get()
 
 //And more...
 ```
-See: [main.cpp](https://github.com/Lefraudeur/MetaJNI/blob/master/main.cpp)
+See: [main.cpp](https://github.com/Lefraudeur/MetaJNI/blob/cmake/src/main.cpp)
 
 ## Get Started
-The only file you have to include in your project is [meta_jni.hpp](https://github.com/Lefraudeur/MetaJNI/blob/master/meta_jni.hpp)
+The only file you have to include in your project is [meta_jni.hpp](https://github.com/Lefraudeur/MetaJNI/blob/cmake/src/meta_jni.hpp)
 Other files are part of the exemple project, it's a dll injectable into minecraft vanilla 1.8.9 to showcase and test all features,\
 but the **library does not depend on minecraft** and can be used anywhere you would use normal jni.
 ### Setup JNIEnv* :
@@ -42,8 +43,8 @@ So **for each thread** that uses the library, you have to call
 ```C++
 jni::set_thread_env(env);
 ```
-### Create mappings :
-See: [mappings.hpp](https://github.com/Lefraudeur/MetaJNI/blob/master/mappings.hpp)
+### Create mappings :<a id="create-mappings"></a>
+See: [mappings.hpp](https://github.com/Lefraudeur/MetaJNI/blob/cmake/src/mappings.hpp)
 Start by creating a header file like `mappings.hpp`, it's also recommended to put further definitions in a namespace like `maps::`
 - #### Define a class
 	```C++
