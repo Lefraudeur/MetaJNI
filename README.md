@@ -171,6 +171,6 @@ coding another program that writes repetitive code for you would give way more p
 ### Building example dll
 Use visual studio or install cmake and run :
 ```
-cmake -B ./Build
+cmake -DCMAKE_BUILD_TYPE=Release -B ./Build
 cmake --build Build --target MetaJNI --config Release
 ```
