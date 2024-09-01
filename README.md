@@ -132,6 +132,7 @@ In this situation local_theMinecraft stores the same jobject as global_theMinecr
 	```
 	maps::URL url = maps::URL::new_object(&maps::URL::constructor, String.create("http://www.example.com/docs/resource1.html"));
 	```
+	Implicit type casting does not work with this template. For example, you will have to write `jint(3)` instead of `3`.
 
 #### Separe klass declaration and definition
 Often you will have 2 klass definitions that depend from eachother, or you simply don't want to bother about the order in which you define your klasses.\
@@ -149,7 +150,8 @@ END_KLASS_MEMBERS()
 ### Custom FindClass
 MetaJNI uses jni_env->FindClass to find its classes, however FindClass may use the wrong classLoader\
 You can provide an additional implementation of FindClass using `jni::set_custom_find_class`\
-⚠️Make sure the jobjects (eg. classLoader references) your method uses live until the call to `jni::shutdown`
+⚠️Make sure the jobjects (eg. classLoader references) your method uses live until the call to `jni::shutdown`\
+See: https://github.com/Lefraudeur/MetaJNI/tree/example-base-forge-1.7.10
 
 #### Warning / Remarks / Downsides...
 The way you create new objects or call static methods can be a bit confusing :\

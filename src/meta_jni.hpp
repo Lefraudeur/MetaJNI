@@ -760,17 +760,6 @@ namespace jni
 	template<class... method_parameters_type>
 	using constructor = method<void, "<init>", jni::NOT_STATIC, method_parameters_type...>;
 
-	/*
-	template<class T> struct remove_member_pointer
-	{
-		typedef T type;
-	};
-	template<class C, class T> struct remove_member_pointer<T C::*>
-	{
-		typedef T type;
-	};
-	*/
-
 
 	template<string_litteral class_name, class members_type>
 	class klass : public members_type
