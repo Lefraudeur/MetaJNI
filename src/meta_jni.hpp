@@ -433,10 +433,13 @@ namespace jni
 			m(m)
 		{
 			if (id) return;
-			if constexpr (is_static)
-				id = get_env()->GetStaticFieldID(m.owner_klass, get_name(), get_signature());
-			if constexpr (!is_static)
-				id = get_env()->GetFieldID(m.owner_klass, get_name(), get_signature());
+			if (m.owner_klass)
+			{
+				if constexpr (is_static)
+					id = get_env()->GetStaticFieldID(m.owner_klass, get_name(), get_signature());
+				if constexpr (!is_static)
+					id = get_env()->GetFieldID(m.owner_klass, get_name(), get_signature());
+			}
 			assertm(id, (const char*)(concat<"failed to find fieldID: ", get_name(), " ", get_signature()>()));
 		}
 
@@ -630,10 +633,13 @@ namespace jni
 			m(m)
 		{
 			if (id) return;
-			if constexpr (is_static)
-				id = get_env()->GetStaticMethodID(m.owner_klass, get_name(), get_signature());
-			if constexpr (!is_static)
-				id = get_env()->GetMethodID(m.owner_klass, get_name(), get_signature());
+			if (m.owner_klass)
+			{
+				if constexpr (is_static)
+					id = get_env()->GetStaticMethodID(m.owner_klass, get_name(), get_signature());
+				if constexpr (!is_static)
+					id = get_env()->GetMethodID(m.owner_klass, get_name(), get_signature());
+			}
 			assertm(id, (const char*)(concat<"failed to find methodID: ", get_name(), " ", get_signature()>()));
 		}
 
