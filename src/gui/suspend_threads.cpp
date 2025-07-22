@@ -4,7 +4,7 @@
 #include <iostream>	
 #include <vector>
 
-std::vector<HANDLE> opened_threads{};
+static std::vector<HANDLE> opened_threads{};
 
 bool suspend_threads()
 {
