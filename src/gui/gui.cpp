@@ -4,6 +4,7 @@
 #include "../imgui/imgui_impl_win32.h"
 #include "../modules/modules.hpp"
 #include "../hook/hook.hpp"
+#include "suspend_threads.hpp"
 
 namespace
 {
@@ -19,6 +20,7 @@ namespace
 
 	volatile bool request_shutdown = false;
 	hook<wglSwapBuffers_t>* opengl_hook = nullptr;
+	volatile bool run_once = true;
 
 	int last_pressed_key = 0;
 }
@@ -82,8 +84,6 @@ static void uninit(HWND current_window, HDC device)
 
 static BOOL WINAPI detour_wglSwapBuffers(hook<wglSwapBuffers_t>* hk, void* return_address, HDC device)
 {
-	static bool run_once = true;
-
 	HWND current_window = WindowFromDC(device);
 
 	if (request_shutdown)
@@ -173,7 +173,13 @@ bool gui::init()
 	if (!wglSwapBuffers)
 		return false;
 
+	if (!suspend_threads())
+	{
+		std::cerr << "failed to suspend threads\n";
+		return false;
+	}
 	opengl_hook = hook<wglSwapBuffers_t>::create(wglSwapBuffers, detour_wglSwapBuffers);
+	resume_threads();
 	if (!opengl_hook->is_valid())
 		return false;
 

@@ -22,7 +22,7 @@ add_library(MetaJNI SHARED "src/main.cpp" "src/jvmti/jvmti.cpp" "src/gui/gui.cpp
 	"src/maths/maths.cpp" 
 	"src/hook/hde/hde64.cpp"
 	"src/hook/mem/mem.cpp" 
- "src/modules/fastbreak.cpp" "src/utils/utils.cpp")
+ "src/modules/fastbreak.cpp" "src/utils/utils.cpp" "src/gui/suspend_threads.cpp")
 
 target_include_directories(MetaJNI PUBLIC "include")
 target_include_directories(MetaJNI PUBLIC "include/jni")
