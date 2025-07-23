@@ -141,12 +141,12 @@ namespace jni
 			std::shared_lock shared_lock{ jclass_cache<klass_type>::mutex };
 			if (cached) return cached;
 		}
-		jclass local = (_custom_find_class && !std::string_view(klass_type::get_name()).starts_with("java/") ? _custom_find_class(klass_type::get_name()) : nullptr);
-		if (!local)
-			local = env->FindClass(klass_type::get_name());
+		jclass local = env->FindClass(klass_type::get_name());
 		if (env->ExceptionCheck())
 			env->ExceptionClear();
 		jclass found = (jclass)env->NewGlobalRef(local);
+		if (!found && _custom_find_class)
+			found = (jclass)env->NewGlobalRef(_custom_find_class(klass_type::get_name()));
 		assertm(found, (const char*)(concat<"failed to find class: ", klass_type::get_name()>()));
 		{
 			std::unique_lock unique_lock{ jclass_cache<klass_type>::mutex };
@@ -158,6 +158,7 @@ namespace jni
 		}
 		return found;
 	}
+
 
 	class object_wrapper
 	{
@@ -192,7 +193,7 @@ namespace jni
 			return *this;
 		}
 
-		bool operator==(const object_wrapper& other)
+		bool operator==(const object_wrapper& other) const
 		{
 			return is_same_object(other);
 		}
@@ -432,10 +433,13 @@ namespace jni
 			m(m)
 		{
 			if (id) return;
-			if constexpr (is_static)
-				id = get_env()->GetStaticFieldID(m.owner_klass, get_name(), get_signature());
-			if constexpr (!is_static)
-				id = get_env()->GetFieldID(m.owner_klass, get_name(), get_signature());
+			if (m.owner_klass)
+			{
+				if constexpr (is_static)
+					id = get_env()->GetStaticFieldID(m.owner_klass, get_name(), get_signature());
+				if constexpr (!is_static)
+					id = get_env()->GetFieldID(m.owner_klass, get_name(), get_signature());
+			}
 			assertm(id, (const char*)(concat<"failed to find fieldID: ", get_name(), " ", get_signature()>()));
 		}
 
@@ -591,6 +595,11 @@ namespace jni
 			}
 		}
 
+		operator field_type() const
+		{
+			return get();
+		}
+
 		static constexpr auto get_name()
 		{
 			return field_name;
@@ -624,10 +633,13 @@ namespace jni
 			m(m)
 		{
 			if (id) return;
-			if constexpr (is_static)
-				id = get_env()->GetStaticMethodID(m.owner_klass, get_name(), get_signature());
-			if constexpr (!is_static)
-				id = get_env()->GetMethodID(m.owner_klass, get_name(), get_signature());
+			if (m.owner_klass)
+			{
+				if constexpr (is_static)
+					id = get_env()->GetStaticMethodID(m.owner_klass, get_name(), get_signature());
+				if constexpr (!is_static)
+					id = get_env()->GetMethodID(m.owner_klass, get_name(), get_signature());
+			}
 			assertm(id, (const char*)(concat<"failed to find methodID: ", get_name(), " ", get_signature()>()));
 		}
 

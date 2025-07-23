@@ -17,12 +17,8 @@ add_library(MetaJNI SHARED "src/main.cpp" "src/jvmti/jvmti.cpp" "src/gui/gui.cpp
 	"src/imgui/imgui.cpp" "src/imgui/imgui_demo.cpp" "src/imgui/imgui_draw.cpp" "src/imgui/imgui_impl_opengl3.cpp" "src/imgui/imgui_impl_win32.cpp" "src/imgui/imgui_tables.cpp" "src/imgui/imgui_widgets.cpp" 
 	"src/cache/cache.cpp" 
 	"src/modules/modules.cpp" 
-	 
-	 
 	"src/maths/maths.cpp" 
-	"src/hook/hde/hde64.cpp"
-	"src/hook/mem/mem.cpp" 
- "src/modules/fastbreak.cpp" "src/utils/utils.cpp" "src/gui/suspend_threads.cpp")
+ "src/modules/fastbreak.cpp" "src/utils/utils.cpp" )
 
 target_include_directories(MetaJNI PUBLIC "include")
 target_include_directories(MetaJNI PUBLIC "include/jni")
@@ -44,7 +40,7 @@ endif()
 if(WIN32)
 	target_compile_definitions(MetaJNI PUBLIC NOMINMAX)
 	target_include_directories(MetaJNI PUBLIC "include/jni/win32")
-	target_link_libraries(MetaJNI PUBLIC "opengl32.lib")
+	target_link_libraries(MetaJNI PUBLIC "opengl32.lib" "libMinHook.x64.lib")
 elseif(UNIX)
 	target_include_directories(MetaJNI PUBLIC "include/jni/linux")
 	target_link_libraries(MetaJNI PUBLIC "X11") # apt install libx11-dev

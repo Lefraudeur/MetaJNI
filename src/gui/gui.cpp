@@ -3,14 +3,14 @@
 #include "../imgui/imgui_impl_opengl3.h"
 #include "../imgui/imgui_impl_win32.h"
 #include "../modules/modules.hpp"
-#include "../hook/hook.hpp"
-#include "suspend_threads.hpp"
+#include <MinHook.h>
 
 namespace
 {
 	typedef BOOL(WINAPI* wglSwapBuffers_t)(HDC);
 
 	wglSwapBuffers_t wglSwapBuffers = nullptr;
+	wglSwapBuffers_t original_wglSwapBuffers = nullptr;
 	WNDPROC original_WndProc = nullptr;
 
 	HWND window = nullptr;
@@ -19,7 +19,7 @@ namespace
 	HGLRC new_context = nullptr;
 
 	volatile bool request_shutdown = false;
-	hook<wglSwapBuffers_t>* opengl_hook = nullptr;
+	volatile bool shut_down = false;
 	volatile bool run_once = true;
 
 	int last_pressed_key = 0;
@@ -82,17 +82,17 @@ static void uninit(HWND current_window, HDC device)
 	wglDeleteContext(new_context);
 }
 
-static BOOL WINAPI detour_wglSwapBuffers(hook<wglSwapBuffers_t>* hk, void* return_address, HDC device)
+static BOOL WINAPI detour_wglSwapBuffers(HDC device)
 {
 	HWND current_window = WindowFromDC(device);
 
 	if (request_shutdown)
 	{
-		uninit(current_window, device);
-		BOOL bl = hk->get_original()(device);
-		hk->request_free();
 		request_shutdown = false;
-		return bl;
+		MH_DisableHook(wglSwapBuffers);
+		uninit(current_window, device);
+		shut_down = true;
+		return wglSwapBuffers(device);
 	}
 
 	// if already init, and window changed, cleanup and reinit
@@ -118,10 +118,8 @@ static BOOL WINAPI detour_wglSwapBuffers(hook<wglSwapBuffers_t>* hk, void* retur
 		io.IniFilename = nullptr;
 		io.LogFilename = nullptr;
 
-
 		io.Fonts->AddFontDefault();
 		ImGui::StyleColorsDark();
-
 		ImGui_ImplOpenGL3_Init();
 		ImGui_ImplWin32_Init(window);
 		run_once = false;
@@ -161,7 +159,7 @@ static BOOL WINAPI detour_wglSwapBuffers(hook<wglSwapBuffers_t>* hk, void* retur
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 	wglMakeCurrent(device, original_context);
-	return hk->get_original()(device);
+	return original_wglSwapBuffers(device);
 }
 
 bool gui::init()
@@ -173,15 +171,11 @@ bool gui::init()
 	if (!wglSwapBuffers)
 		return false;
 
-	if (!suspend_threads())
-	{
-		std::cerr << "failed to suspend threads\n";
-		return false;
-	}
-	opengl_hook = hook<wglSwapBuffers_t>::create(wglSwapBuffers, detour_wglSwapBuffers);
-	resume_threads();
-	if (!opengl_hook->is_valid())
-		return false;
+	if (MH_Initialize() != MH_OK) return false;
+
+	if (MH_CreateHook(wglSwapBuffers, detour_wglSwapBuffers, (void**)&original_wglSwapBuffers) != MH_OK) return false;
+
+	if (MH_EnableHook(wglSwapBuffers) != MH_OK) return false;
 
 	return true;
 }
@@ -189,8 +183,9 @@ bool gui::init()
 void gui::shutdown()
 {
 	request_shutdown = true;
-	while (request_shutdown || !opengl_hook->freeed());
-	opengl_hook->destroy();
+	while (!shut_down);
+	MH_RemoveHook(wglSwapBuffers);
+	MH_Uninitialize();
 }
 
 int gui::get_last_pressed_key()
