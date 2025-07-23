@@ -296,6 +296,47 @@ namespace jni
 			return *this;
 		}
 
+		void set_elements(const std::vector<array_element_type>& values)
+		{
+			if constexpr (!is_jni_primitive_type<array_element_type>)
+			{
+				for (jsize i = 0; i < values.size(); ++i)
+					get_env()->SetObjectArrayElement((jobjectArray)object_instance, i, (jobject)values[i]);
+			}
+			if constexpr (std::is_same_v<jboolean, array_element_type>)
+			{
+				get_env()->SetBooleanArrayRegion((jbooleanArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jbyte, array_element_type>)
+			{
+				get_env()->SetByteArrayRegion((jbyteArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jchar, array_element_type>)
+			{
+				get_env()->SetCharArrayRegion((jcharArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jshort, array_element_type>)
+			{
+				get_env()->SetShortArrayRegion((jshortArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jint, array_element_type>)
+			{
+				get_env()->SetIntArrayRegion((jintArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jfloat, array_element_type>)
+			{
+				get_env()->SetFloatArrayRegion((jfloatArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jlong, array_element_type>)
+			{
+				get_env()->SetLongArrayRegion((jlongArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jdouble, array_element_type>)
+			{
+				get_env()->SetDoubleArrayRegion((jdoubleArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+		}
+
 		std::vector<array_element_type> to_vector() const
 		{
 			jsize length = get_length();
