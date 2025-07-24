@@ -17,7 +17,8 @@ void modules::aimassist::run(::cache& cache)
 	}
 
 	float tickDelta = cache.instance.renderTickCounter.get().tickDelta.get();
-	if (tickDelta > 1.0f) return;
+	if (tickDelta > 1.0f)
+		return;
 
 	maths::vector3d current_player_position = cache.player.get_position();
 	maths::vector3d prev_player_position = cache.player.get_prev_position();

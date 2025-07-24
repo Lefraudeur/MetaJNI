@@ -1,6 +1,6 @@
-# base fabric 1.20.1
+# base Lunar 1.20.4
 
-Old cheat I made some time ago for fabric 1.20.1 using meta jni \
+Same as the 1.20.1 fabric base, but changed mappings for lunar \
 insert to open the gui \
 right click module to show options \
 end key to uninject

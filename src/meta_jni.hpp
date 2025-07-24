@@ -14,13 +14,9 @@
 #include <shared_mutex>
 #include <cstdint>
 #include <functional>
+#include "logger/logger.hpp"
 
-#ifdef NDEBUG
-	#define assertm(exp, msg) ;
-#else
-	#include <iostream>
-	#define assertm(exp, msg) if (!exp) { std::cout << msg << '\n'; abort(); }
-#endif
+#define assertm(exp, msg) if (!exp) logger::log(msg);
 
 #define BEGIN_KLASS_DEF(unobf_klass_name, obf_klass_name) struct unobf_klass_name##_members; using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>; struct unobf_klass_name##_members : public jni::empty_members	{ unobf_klass_name##_members(jclass owner_klass, jobject object_instance, bool is_global_ref) : jni::empty_members(owner_klass, object_instance, is_global_ref) {}
 
@@ -59,15 +55,16 @@ namespace jni
 #endif
 	}
 
-	inline void init()
+	inline bool init()
 	{
-		if (_tls_index) return;
+		if (_tls_index) return true;
 #ifdef _WIN32
 		_tls_index = TlsAlloc();
 #elif __linux__
 		pthread_key_create(&_tls_index, nullptr);
 #endif
 		assertm(_tls_index, "tls index allocation failed");
+		if (!_tls_index) return false;
 	}
 	inline void shutdown() //needs to be called on exit, library unusable after this
 	{

@@ -5,6 +5,7 @@
     #include <X11/Xutil.h>
 #endif
 
+#include "logger/logger.hpp"
 #include "meta_jni.hpp"
 #include "mappings.hpp"
 #include "jvmti/jvmti.hpp"
@@ -33,98 +34,109 @@ static bool is_uninject_key_pressed()
 #endif
 }
 
-static void mainThread(void* dll)
+static void do_with_jni(JavaVM* jvm)
 {
-#if defined(_WIN32) && !defined(NDEBUG)
-    AllocConsole();
-    FILE* buff1, * buff2, *buff3 = nullptr;
-    freopen_s(&buff1, "CONOUT$", "w", stdout);
-    freopen_s(&buff2, "CONOUT$", "w", stderr);
-    freopen_s(&buff3, "CONIN$", "r", stdin);
-#elif defined(__linux__)
-    display = XOpenDisplay(NULL);
-#endif
+    ::jvmti jvmti{ jvm };
+    if (!jvmti)
+        return;
+
+    jni::frame frame{}; // every local ref follow this frame object lifetime
+
+    maps::Class minecraftClass(jvmti.find_loaded_class(maps::MinecraftClient::get_name()));
+    maps::URLClassLoader minecraftClassLoader = maps::URLClassLoader(jvmti.get_class_ClassLoader(minecraftClass), true);
+    jni::set_custom_find_class([&minecraftClassLoader](const char* class_name) -> jclass
+        {
+            jni::frame frame{ 3 };
+            JNIEnv* env = jni::get_env();
+
+            std::string name = class_name;
+            for (size_t it = name.find('/'); it != std::string::npos; it = name.find('/', it + 1))
+                name[it] = '.';
+            jclass found = minecraftClassLoader.findClass(maps::String::create(name.c_str()));
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+
+            return found;
+        });
+
+    modules::init();
+    gui::init();
+
+    ::cache cache{};
+
+    while (!is_uninject_key_pressed())
+    {
+        if (!cache.update())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(64));
+            continue;
+        }
+
+        for (modules::module* module : modules::get_modules())
+        {
+            jni::frame frame{ 32 };
+            if (module->enabled)
+            {
+                if (!module->prev_enabled)
+                {
+                    module->prev_enabled = true;
+                    module->on_enable(cache);
+                }
+                module->run(cache);
+            }
+            else if (module->prev_enabled)
+            {
+                module->prev_enabled = false;
+                module->on_disable(cache);
+            }
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    }
+
+    gui::shutdown();
+    modules::shutdown(cache);
+}
+
+static void do_with_attached_thread(JavaVM* jvm, JNIEnv* env)
+{
+    if (!jni::init())
+        return;
+    jni::set_thread_env(env); //this is needed for every new thread that uses the lib
+
+    do_with_jni(jvm);
+
+    jni::shutdown();
+}
+
+static void do_with_logger()
 {
     JavaVM* jvm = nullptr;
     JNI_GetCreatedJavaVMs(&jvm, 1, nullptr);
-    JNIEnv* env = nullptr;
-    jvm->AttachCurrentThread((void**)&env, nullptr);
-    jni::init();
-    jni::set_thread_env(env); //this is needed for every new thread that uses the lib
-
+    if (!jvm)
     {
-        ::jvmti jvmti{ jvm };
-
-        jni::frame frame{}; // every local ref follow this frame object lifetime
-
-        maps::Class minecraftClass(jvmti.find_loaded_class(maps::MinecraftClient::get_name()));
-        maps::URLClassLoader minecraftClassLoader = maps::URLClassLoader(jvmti.get_class_ClassLoader(minecraftClass), true);
-        jni::set_custom_find_class([&minecraftClassLoader](const char* class_name) -> jclass
-            {
-                jni::frame frame{ 3 };
-                JNIEnv* env = jni::get_env();
-
-                std::string name = class_name;
-                for (size_t it = name.find('/'); it != std::string::npos; it = name.find('/', it + 1))
-                    name[it] = '.';
-                jclass found = minecraftClassLoader.findClass(maps::String::create(name.c_str()));
-                if (env->ExceptionCheck())
-                    env->ExceptionClear();
-
-                return found;
-            });
-
-        modules::init();
-        gui::init();
-
-        ::cache cache{};
-
-        while (!is_uninject_key_pressed())
-        {
-            if (!cache.update())
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(64));
-                continue;
-            }
-
-            for (modules::module* module : modules::get_modules())
-            {
-                jni::frame frame{ 32 };
-                if (module->enabled)
-                {
-                    if (!module->prev_enabled)
-                    {
-                        module->prev_enabled = true;
-                        module->on_enable(cache);
-                    }
-                    module->run(cache);
-                }
-                else if (module->prev_enabled)
-                {
-                    module->prev_enabled = false;
-                    module->on_disable(cache);
-                }
-            }
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(8));
-        }
-
-        gui::shutdown();
-        modules::shutdown(cache);
+        logger::error("failed to get JavaVM*");
+        return;
     }
 
+    JNIEnv* env = nullptr;
+    jvm->AttachCurrentThread((void**)&env, nullptr);
+    if (!env)
+    {
+        logger::error("failed to attach current thread");
+        return;
+    }
 
-    jni::shutdown();
+    do_with_attached_thread(jvm, env);
+
     jvm->DetachCurrentThread();
 }
 
-#if defined(_WIN32) && !defined(NDEBUG)
-    fclose(buff1);
-    fclose(buff2);
-    fclose(buff3);
-    FreeConsole();
-#endif
-
+static void mainThread(void* dll)
+{
+    logger::init();
+    do_with_logger();
+    logger::shutdown();
 #if defined(_WIN32)
     FreeLibraryAndExitThread((HMODULE)dll, 0);
 #elif defined(__linux__)

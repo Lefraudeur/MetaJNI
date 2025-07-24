@@ -74,10 +74,10 @@ namespace maps
 
 
 
-	BEGIN_KLASS_DEF(Vec3d, "net/minecraft/class_243")
-		jni::field<jdouble, "field_1352"> x{ *this };
-		jni::field<jdouble, "field_1351"> y{ *this };
-		jni::field<jdouble, "field_1350"> z{ *this };
+	BEGIN_KLASS_DEF(Vec3d, "net/minecraft/world/phys/Vec3")
+		jni::field<jdouble, "x"> x{ *this };
+		jni::field<jdouble, "y"> y{ *this };
+		jni::field<jdouble, "z"> z{ *this };
 
 		maths::vector3d to_vector3d()
 		{
@@ -85,55 +85,55 @@ namespace maps
 		}
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(Item, "net/minecraft/class_1792")
+	BEGIN_KLASS_DEF(Item, "net/minecraft/world/item/Item")
 	END_KLASS_DEF()
-	BEGIN_KLASS_DEF_EX(SwordItem, "net/minecraft/class_1829", Item)
-	END_KLASS_DEF()
-
-	BEGIN_KLASS_DEF(ItemStack, "net/minecraft/class_1799")
-		jni::field<Item, "field_8038"> item{ *this };
+	BEGIN_KLASS_DEF_EX(SwordItem, "net/minecraft/world/item/SwordItem", Item)
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(Box, "net/minecraft/class_238")
-		jni::field<jdouble, "field_1323"> minX{ *this };
-		jni::field<jdouble, "field_1322"> minY{ *this };
-		jni::field<jdouble, "field_1321"> minZ{ *this };
-		jni::field<jdouble, "field_1320"> maxX{ *this };
-		jni::field<jdouble, "field_1325"> maxY{ *this };
-		jni::field<jdouble, "field_1324"> maxZ{ *this };
+	BEGIN_KLASS_DEF(ItemStack, "net/minecraft/world/item/ItemStack")
+		jni::field<Item, "item"> item{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(EntityPose, "net/minecraft/class_4050")
+	BEGIN_KLASS_DEF(Box, "net/minecraft/world/phys/AABB")
+		jni::field<jdouble, "minX"> minX{ *this };
+		jni::field<jdouble, "minY"> minY{ *this };
+		jni::field<jdouble, "minZ"> minZ{ *this };
+		jni::field<jdouble, "maxX"> maxX{ *this };
+		jni::field<jdouble, "maxY"> maxY{ *this };
+		jni::field<jdouble, "maxZ"> maxZ{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(EntityDimensions, "net/minecraft/class_4048")
+	BEGIN_KLASS_DEF(EntityPose, "net/minecraft/world/entity/Pose")
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(StatusEffect, "net/minecraft/class_1291")
+	BEGIN_KLASS_DEF(EntityDimensions, "net/minecraft/world/entity/EntityDimensions")
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(StatusEffects, "net/minecraft/class_1294")
-		jni::field<StatusEffect, "field_5912", jni::STATIC> GLOWING{ *this };
+	BEGIN_KLASS_DEF(StatusEffect, "net/minecraft/world/effect/MobEffect")
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(StatusEffectInstance, "net/minecraft/class_1293")
+	BEGIN_KLASS_DEF(StatusEffects, "net/minecraft/world/effect/MobEffects")
+		jni::field<StatusEffect, "GLOWING", jni::STATIC> GLOWING{ *this };
+	END_KLASS_DEF()
+
+	BEGIN_KLASS_DEF(StatusEffectInstance, "net/minecraft/world/effect/MobEffectInstance")
 		jni::constructor<StatusEffect, jint, jint> constructor{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(Entity, "net/minecraft/class_1297")
-		jni::field<Box, "field_6005"> boundingBox{ *this };
-		jni::field<jint, "field_6012"> age{ *this };
-		jni::field<Vec3d, "field_22467"> pos{ *this };
-		jni::field<jfloat, "field_6031"> yaw{ *this };
-		jni::field<jfloat, "field_5965"> pitch{ *this };
-		jni::field<jfloat, "field_5982"> prevYaw{ *this };
-		jni::field<jfloat, "field_6004"> prevPitch{ *this };
-		jni::field<jfloat, "field_6017"> fallDistance{ *this };
-		jni::field<jboolean, "field_5952"> onGround{ *this };
+	BEGIN_KLASS_DEF(Entity, "net/minecraft/world/entity/Entity")
+		jni::field<Box, "bb"> boundingBox{ *this };
+		jni::field<jint, "tickCount"> age{ *this };
+		jni::field<Vec3d, "position"> pos{ *this };
+		jni::field<jfloat, "yRot"> yaw{ *this };
+		jni::field<jfloat, "xRot"> pitch{ *this };
+		jni::field<jfloat, "yRotO"> prevYaw{ *this };
+		jni::field<jfloat, "xRotO"> prevPitch{ *this };
+		jni::field<jfloat, "fallDistance"> fallDistance{ *this };
+		jni::field<jboolean, "onGround"> onGround{ *this };
 
-		jni::field<jdouble, "field_6038"> lastRenderX{ *this };
-		jni::field<jdouble, "field_5971"> lastRenderY{ *this };
-		jni::field<jdouble, "field_5989"> lastRenderZ{ *this };
+		jni::field<jdouble, "xOld"> lastRenderX{ *this };
+		jni::field<jdouble, "yOld"> lastRenderY{ *this };
+		jni::field<jdouble, "zOld"> lastRenderZ{ *this };
 
 		maths::vector3d get_prev_position()
 		{
@@ -155,78 +155,78 @@ namespace maps
 			return { yaw.get(), pitch.get() };
 		}
 
-		jni::method<EntityPose, "method_18376"> getPose{ *this };
-		jni::method<EntityDimensions, "method_18377", jni::NOT_STATIC, EntityPose> getDimensions{ *this };
-		jni::method<jfloat, "method_18381", jni::NOT_STATIC, EntityPose> getEyeHeight{ *this };
-		jni::method<jboolean, "method_5805"> isAlive{ *this };
-		jni::method<void, "method_5834", jni::NOT_STATIC, jboolean> setGlowing{ *this };
-		jni::method<void, "method_5729", jni::NOT_STATIC, jint, jboolean> setFlag{ *this };
-		jni::method<void, "method_5728", jni::NOT_STATIC, jboolean> setSprinting{ *this };
-		jni::method<jboolean, "method_5624"> isSprinting{ *this };
+		jni::method<EntityPose, "getPose"> getPose{ *this };
+		jni::method<EntityDimensions, "getDimensions", jni::NOT_STATIC, EntityPose> getDimensions{ *this };
+		jni::method<jfloat, "getEyeHeight", jni::NOT_STATIC, EntityPose> getEyeHeight{ *this };
+		jni::method<jboolean, "isAlive"> isAlive{ *this };
+		jni::method<void, "setGlowingTag", jni::NOT_STATIC, jboolean> setGlowing{ *this };
+		jni::method<void, "setSharedFlag", jni::NOT_STATIC, jint, jboolean> setFlag{ *this };
+		jni::method<void, "setSprinting", jni::NOT_STATIC, jboolean> setSprinting{ *this };
+		jni::method<jboolean, "isSprinting"> isSprinting{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF_EX(LivingEntity, "net/minecraft/class_1309", Entity)
-		jni::field<jint, "field_6273"> lastAttackedTicks{ *this };
+	BEGIN_KLASS_DEF_EX(LivingEntity, "net/minecraft/world/entity/LivingEntity", Entity)
+		jni::field<jint, "attackStrengthTicker"> lastAttackedTicks{ *this };
 
-		jni::method<jboolean, "method_24518", jni::NOT_STATIC, Item> isHolding{ *this };
-		jni::method<ItemStack, "method_6047"> getMainHandStack{ *this };
-		jni::method<jboolean, "method_6092", jni::NOT_STATIC, StatusEffectInstance> addStatusEffect{ *this };
+		jni::method<jboolean, "isHolding", jni::NOT_STATIC, Item> isHolding{ *this };
+		jni::method<ItemStack, "getMainHandItem"> getMainHandStack{ *this };
+		jni::method<jboolean, "addEffect", jni::NOT_STATIC, StatusEffectInstance> addStatusEffect{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF_EX(PlayerEntity, "net/minecraft/class_1657", LivingEntity)
-		jni::method<jfloat, "method_7261", jni::NOT_STATIC, jfloat> getAttackCooldownProgress{ *this };
+	BEGIN_KLASS_DEF_EX(PlayerEntity, "net/minecraft/world/entity/player/Player", LivingEntity)
+		jni::method<jfloat, "getAttackStrengthScale", jni::NOT_STATIC, jfloat> getAttackCooldownProgress{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF_EX(AbstractClientPlayerEntity, "net/minecraft/class_742", PlayerEntity)
+	BEGIN_KLASS_DEF_EX(AbstractClientPlayerEntity, "net/minecraft/client/player/AbstractClientPlayer", PlayerEntity)
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF_EX(ClientPlayerEntity, "net/minecraft/class_746", AbstractClientPlayerEntity)
+	BEGIN_KLASS_DEF_EX(ClientPlayerEntity, "net/minecraft/client/player/LocalPlayer", AbstractClientPlayerEntity)
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(ClientWorld, "net/minecraft/class_638")
-		jni::field<List, "field_18226"> players{ *this };
+	BEGIN_KLASS_DEF(ClientWorld, "net/minecraft/client/multiplayer/ClientLevel")
+		jni::field<List, "players"> players{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(SimpleOption, "net/minecraft/class_7172")
-		jni::field<Object, "field_37868"> value{ *this };
+	BEGIN_KLASS_DEF(SimpleOption, "net/minecraft/client/OptionInstance")
+		jni::field<Object, "value"> value{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(GameOptions, "net/minecraft/class_315")
-		jni::field<SimpleOption, "field_1843"> mouseSensitivity{ *this };
+	BEGIN_KLASS_DEF(GameOptions, "net/minecraft/client/Options")
+		jni::field<SimpleOption, "sensitivity"> mouseSensitivity{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(Mouse, "net/minecraft/class_312")
-		jni::field<jdouble, "field_1789"> cursorDeltaX{ *this };
-		jni::field<jdouble, "field_1787"> cursorDeltaY{ *this };
+	BEGIN_KLASS_DEF(Mouse, "net/minecraft/client/MouseHandler")
+		jni::field<jdouble, "accumulatedDX"> cursorDeltaX{ *this };
+		jni::field<jdouble, "accumulatedDY"> cursorDeltaY{ *this };
 
-		jni::method<void, "method_1606"> updateMouse{ *this };
+		jni::method<void, "turnPlayer"> updateMouse{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(RenderTickCounter, "net/minecraft/class_317")
-		jni::field<jfloat, "field_1970"> tickDelta{ *this };
+	BEGIN_KLASS_DEF(RenderTickCounter, "net/minecraft/client/Timer")
+		jni::field<jfloat, "partialTick"> tickDelta{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(HitResult$Type, "net/minecraft/class_239$class_240")
-		jni::field<HitResult$Type, "field_1331", jni::STATIC> ENTITY{ *this };
+	BEGIN_KLASS_DEF(HitResult$Type, "net/minecraft/world/phys/HitResult$Type")
+		jni::field<HitResult$Type, "ENTITY", jni::STATIC> ENTITY{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(HitResult, "net/minecraft/class_239")
-		jni::method<HitResult$Type, "method_17783"> getType{ *this };
+	BEGIN_KLASS_DEF(HitResult, "net/minecraft/world/phys/HitResult")
+		jni::method<HitResult$Type, "getType"> getType{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF_EX(EntityHitResult, "net/minecraft/class_3966", HitResult)
-		jni::field<Entity, "field_17592"> entity{ *this };
+	BEGIN_KLASS_DEF_EX(EntityHitResult, "net/minecraft/world/phys/EntityHitResult", HitResult)
+		jni::field<Entity, "entity"> entity{ *this };
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(MinecraftClient, "net/minecraft/class_310")
-		jni::field<MinecraftClient, "field_1700", jni::STATIC> instance{ *this };
+	BEGIN_KLASS_DEF(MinecraftClient, "net/minecraft/client/Minecraft")
+		jni::field<MinecraftClient, "instance", jni::STATIC> instance{ *this };
 
-		jni::field<ClientWorld, "field_1687"> world{ *this };
-		jni::field<ClientPlayerEntity, "field_1724"> player{ *this };
-		jni::field<HitResult, "field_1765"> crosshairTarget{ *this };
+		jni::field<ClientWorld, "level"> world{ *this };
+		jni::field<ClientPlayerEntity, "player"> player{ *this };
+		jni::field<HitResult, "hitResult"> crosshairTarget{ *this };
 
-		jni::field<Mouse, "field_1729"> mouse{ *this };
-		jni::field<GameOptions, "field_1690"> options{ *this };
-		jni::field<RenderTickCounter, "field_1728"> renderTickCounter{ *this };
+		jni::field<Mouse, "mouseHandler"> mouse{ *this };
+		jni::field<GameOptions, "options"> options{ *this };
+		jni::field<RenderTickCounter, "timer"> renderTickCounter{ *this };
 	END_KLASS_DEF()
 }
