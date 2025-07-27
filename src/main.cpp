@@ -14,6 +14,7 @@
 #include "gui/gui.hpp"
 #include "cache/cache.hpp"
 #include "modules/modules.hpp"
+#include "scheduler/scheduler.hpp"
 
 #ifdef __linux__
 static Display* display = nullptr;
@@ -43,7 +44,7 @@ static void do_with_jni(JavaVM* jvm)
     jni::frame frame{}; // every local ref follow this frame object lifetime
 
     maps::Class minecraftClass(jvmti.find_loaded_class(maps::MinecraftClient::get_name()));
-    maps::URLClassLoader minecraftClassLoader = maps::URLClassLoader(jvmti.get_class_ClassLoader(minecraftClass), true);
+    maps::URLClassLoader minecraftClassLoader(jvmti.get_class_ClassLoader(minecraftClass), jni::GLOBAL_REF);
     jni::set_custom_find_class([&minecraftClassLoader](const char* class_name) -> jclass
         {
             jni::frame frame{ 3 };
@@ -52,20 +53,23 @@ static void do_with_jni(JavaVM* jvm)
             std::string name = class_name;
             for (size_t it = name.find('/'); it != std::string::npos; it = name.find('/', it + 1))
                 name[it] = '.';
-            jclass found = minecraftClassLoader.findClass(maps::String::create(name.c_str()));
+            jclass found = minecraftClassLoader.loadClass(maps::String::create(name.c_str()));
             if (env->ExceptionCheck())
                 env->ExceptionClear();
 
             return found;
         });
 
+    scheduler main_scheduler{jvm};
+
     modules::init();
-    gui::init();
+    gui::init(jvm);
 
     ::cache cache{};
 
     while (!is_uninject_key_pressed())
     {
+        // concern : since we do not run our jni code in the game thread, isn't there a risk of race condition between the java code and the jni code ?
         if (!cache.update())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(64));

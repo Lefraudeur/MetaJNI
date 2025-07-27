@@ -24,9 +24,7 @@ void modules::aimassist::run(::cache& cache)
 	maths::vector3d prev_player_position = cache.player.get_prev_position();
 	maths::vector3d player_position = prev_player_position + (current_player_position - prev_player_position) * tickDelta;
 
-	maths::angles current_player_angles = cache.player.get_angles();
-	maths::angles prev_player_angles = cache.player.get_prev_angles();
-	maths::angles player_angles = prev_player_angles + (current_player_angles - prev_player_angles) * tickDelta;
+	maths::angles player_angles = cache.player.get_angles();
 
 	maps::AbstractClientPlayerEntity selected_target{nullptr};
 	maths::angles selected_target_angles_delta{};

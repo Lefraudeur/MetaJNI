@@ -1,10 +1,11 @@
 #include "jvmti.hpp"
 #include "../meta_jni.hpp"
+#include <sstream>
 
 jvmti::jvmti(JavaVM* jvm)
 {
 	if (!jvm) return;
-	jvm->GetEnv((void**)&jvmti_env, JVMTI_VERSION_1_2);
+	jvm->GetEnv((void**)&jvmti_env, JVMTI_VERSION_11);
 }
 
 jvmti::~jvmti()
@@ -70,4 +71,36 @@ maps::ClassLoader jvmti::get_class_ClassLoader(const maps::Class& klass)
 	jobject classLoader = nullptr;
 	jvmti_env->GetClassLoader(klass, &classLoader);
 	return maps::ClassLoader(classLoader);
+}
+
+std::string jvmti::get_field_info(jclass cl, jfieldID field)
+{
+	char* name_buffer = nullptr;
+	char* signature_buffer = nullptr;
+	jvmti_env->GetFieldName(cl, field, &name_buffer, &signature_buffer, nullptr);
+	if (!name_buffer || !signature_buffer) return {};
+
+	std::string result = std::string(name_buffer) +  " " + signature_buffer;
+	jvmti_env->Deallocate((unsigned char*)name_buffer);
+	jvmti_env->Deallocate((unsigned char*)signature_buffer);
+	return result;
+}
+
+void jvmti::log_all_class_fields(const maps::Class& klass)
+{
+	jint field_count = 0;
+	jfieldID* fields = nullptr;
+	if (jvmti_env->GetClassFields(klass, &field_count, &fields) != JVMTI_ERROR_NONE ||
+		!field_count || !fields)
+		return;
+
+	std::vector<jfieldID> fields_vec(fields, fields + field_count);
+	jvmti_env->Deallocate((unsigned char*)fields);
+
+	std::ostringstream res{};
+	for (jfieldID field : fields_vec)
+	{
+		res << get_field_info(klass, field) << '\n';
+	}
+	logger::log(res.view());
 }

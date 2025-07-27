@@ -16,6 +16,8 @@ public:
 	maps::Class find_loaded_class(const char* class_name);
 	std::string get_class_signature(const maps::Class& klass);
 	maps::ClassLoader get_class_ClassLoader(const maps::Class& klass);
+	std::string get_field_info(jclass cl, jfieldID field);
+	void log_all_class_fields(const maps::Class& klass);
 private:
 	jvmtiEnv* jvmti_env = nullptr;
 };

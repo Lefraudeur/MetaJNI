@@ -21,7 +21,7 @@ add_library(MetaJNI SHARED "src/main.cpp" "src/jvmti/jvmti.cpp" "src/gui/gui.cpp
 	"src/modules/aimassist.cpp" 
 	"src/maths/maths.cpp" 
 	"src/modules/autoclick.cpp" 
-	"src/modules/triggerbot.cpp" "src/utils/utils.cpp" "src/modules/glow_esp.cpp" "src/modules/keepsprint.cpp" "src/java_hook/java_hook.cpp" "src/logger/logger.cpp")
+	"src/modules/triggerbot.cpp" "src/utils/utils.cpp" "src/modules/glow_esp.cpp" "src/modules/keepsprint.cpp" "src/java_hook/java_hook.cpp" "src/logger/logger.cpp" "src/gui/render_info.cpp" "src/scheduler/scheduler.cpp")
 
 target_include_directories(MetaJNI PUBLIC "include")
 target_include_directories(MetaJNI PUBLIC "include/jni")

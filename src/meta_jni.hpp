@@ -16,7 +16,7 @@
 #include <functional>
 #include "logger/logger.hpp"
 
-#define assertm(exp, msg) if (!exp) logger::log(msg);
+#define assertm(exp, msg) if (!(exp)) logger::error(msg);
 
 #define BEGIN_KLASS_DEF(unobf_klass_name, obf_klass_name) struct unobf_klass_name##_members; using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>; struct unobf_klass_name##_members : public jni::empty_members	{ unobf_klass_name##_members(jclass owner_klass, jobject object_instance, bool is_global_ref) : jni::empty_members(owner_klass, object_instance, is_global_ref) {}
 
@@ -36,6 +36,9 @@ namespace jni
 	inline std::mutex _refs_to_delete_mutex{};
 	inline std::function<jclass(const char* class_name)> _custom_find_class{};
 
+	inline constexpr bool GLOBAL_REF = true;
+	inline constexpr bool LOCAL_REF = false;
+
 	inline JNIEnv* get_env()
 	{
 		if (!_tls_index) return nullptr;
@@ -48,6 +51,7 @@ namespace jni
 	inline void set_thread_env(JNIEnv* new_env)
 	{
 		if (get_env()) return;
+		assertm(new_env, "called jni::set_thread_env with null new_env");
 #ifdef _WIN32
 		TlsSetValue(_tls_index, new_env);
 #elif __linux__
@@ -65,6 +69,7 @@ namespace jni
 #endif
 		assertm(_tls_index, "tls index allocation failed");
 		if (!_tls_index) return false;
+		return true;
 	}
 	inline void shutdown() //needs to be called on exit, library unusable after this
 	{
@@ -144,7 +149,7 @@ namespace jni
 		jclass found = (jclass)env->NewGlobalRef(local);
 		if (!found && _custom_find_class)
 			found = (jclass)env->NewGlobalRef(_custom_find_class(klass_type::get_name()));
-		assertm(found, (const char*)(concat<"failed to find class: ", klass_type::get_name()>()));
+		assertm(found, (std::string_view)(concat<"failed to find class: ", klass_type::get_name()>()));
 		{
 			std::unique_lock unique_lock{ jclass_cache<klass_type>::mutex };
 			cached = found;
@@ -203,6 +208,7 @@ namespace jni
 		template<typename klass_type>
 		bool is_instance_of() const
 		{
+			assertm(object_instance, (std::string_view)(concat<"called is_instance_of<", klass_type::get_name(), ">() with invalid object_instance">()));
 			return get_env()->IsInstanceOf(object_instance, get_cached_jclass<klass_type>()) == JNI_TRUE;
 		}
 
@@ -293,10 +299,64 @@ namespace jni
 			return *this;
 		}
 
+		static constexpr auto get_signature()
+		{
+			return concat<"[", get_signature_for_type<array_element_type>()>();
+		}
+
+		static constexpr auto get_name() //this is used for FindClass
+		{
+			return get_signature();
+		}
+
+		void set_elements(const std::vector<array_element_type>& values) const
+		{
+			assertm(object_instance, (std::string_view)(concat<"called jni::array::set_elements with invalid object_instance, signature", get_signature()>()));
+			if (!object_instance) return;
+			if constexpr (!is_jni_primitive_type<array_element_type>)
+			{
+				for (jsize i = 0; i < values.size(); ++i)
+					get_env()->SetObjectArrayElement((jobjectArray)object_instance, i, (jobject)values[i]);
+			}
+			if constexpr (std::is_same_v<jboolean, array_element_type>)
+			{
+				get_env()->SetBooleanArrayRegion((jbooleanArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jbyte, array_element_type>)
+			{
+				get_env()->SetByteArrayRegion((jbyteArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jchar, array_element_type>)
+			{
+				get_env()->SetCharArrayRegion((jcharArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jshort, array_element_type>)
+			{
+				get_env()->SetShortArrayRegion((jshortArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jint, array_element_type>)
+			{
+				get_env()->SetIntArrayRegion((jintArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jfloat, array_element_type>)
+			{
+				get_env()->SetFloatArrayRegion((jfloatArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jlong, array_element_type>)
+			{
+				get_env()->SetLongArrayRegion((jlongArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+			if constexpr (std::is_same_v<jdouble, array_element_type>)
+			{
+				get_env()->SetDoubleArrayRegion((jdoubleArray)object_instance, 0, (jsize)values.size(), values.data());
+			}
+		}
+
 		std::vector<array_element_type> to_vector() const
 		{
 			jsize length = get_length();
 			std::vector<array_element_type> vector{};
+			if (!length) return vector;
 			vector.reserve(length);
 			if constexpr (!is_jni_primitive_type<array_element_type>)
 			{
@@ -356,17 +416,10 @@ namespace jni
 
 		jsize get_length() const
 		{
+			assertm(object_instance, (std::string_view)(concat<"called jni::array::get_length() with invalid object_instance, signature: ", get_signature()>()));
+			if (!object_instance)
+				return 0;
 			return get_env()->GetArrayLength((jarray)object_instance);
-		}
-
-		static constexpr auto get_signature()
-		{
-			return concat<"[", get_signature_for_type<array_element_type>()>();
-		}
-
-		static constexpr auto get_name() //this is used for FindClass
-		{
-			return get_signature();
 		}
 
 		static array create(const std::vector<array_element_type>& values)
@@ -437,7 +490,7 @@ namespace jni
 				if constexpr (!is_static)
 					id = get_env()->GetFieldID(m.owner_klass, get_name(), get_signature());
 			}
-			assertm(id, (const char*)(concat<"failed to find fieldID: ", get_name(), " ", get_signature()>()));
+			assertm(id, (std::string_view)(concat<"failed to find fieldID: ", get_name(), " ", get_signature()>()));
 		}
 
 		field(const field& other) = delete; // make sure field won't be copied (we store a empty_members reference which must not be copied)
@@ -450,6 +503,7 @@ namespace jni
 
 		void set(const field_type& new_value)
 		{
+			assertm(is_static || m.object_instance, (std::string_view)(concat<"called set on a non static field with null object_instance, field: ", get_name(), " ", get_signature()>()));
 			if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return;
 			if constexpr (!is_jni_primitive_type<field_type>)
 			{
@@ -518,6 +572,7 @@ namespace jni
 
 		auto get() const
 		{
+			assertm(is_static || m.object_instance, (std::string_view)(concat<"called get on a non static field with null object_instance, field: ", get_name(), " ", get_signature()>()));
 			if constexpr (!is_jni_primitive_type<field_type>)
 			{
 				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return field_type(nullptr);
@@ -649,6 +704,7 @@ namespace jni
 
 		auto call(const method_parameters_type&... method_parameters) const
 		{
+			assertm(is_static || m.object_instance, (std::string_view)(concat<"called call on a non static method with null object_instance, method: ", get_name(), " ", get_signature()>()));
 			if constexpr (std::is_void_v<method_return_type>)
 			{
 				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return;

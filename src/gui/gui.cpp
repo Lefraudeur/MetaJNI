@@ -3,6 +3,7 @@
 #include "../imgui/imgui_impl_opengl3.h"
 #include "../imgui/imgui_impl_win32.h"
 #include "../modules/modules.hpp"
+#include "render_info.hpp";
 #include <MinHook.h>
 
 namespace
@@ -18,9 +19,9 @@ namespace
 	HGLRC original_context = nullptr;
 	HGLRC new_context = nullptr;
 
-	volatile bool request_shutdown = false;
-	volatile bool shut_down = false;
-	volatile bool run_once = true;
+	JavaVM* jvm = nullptr;
+
+	std::atomic<bool> request_shutdown = false;
 
 	int last_pressed_key = 0;
 }
@@ -70,7 +71,7 @@ static LRESULT CALLBACK detour_WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARA
 	return CallWindowProcA(original_WndProc, hWnd, msg, wParam, lParam);
 }
 
-static void uninit(HWND current_window, HDC device)
+static void uninit(HDC device)
 {
 	SetWindowLongPtrA(window, GWLP_WNDPROC, (LONG_PTR)original_WndProc);
 	original_context = wglGetCurrentContext();
@@ -84,26 +85,33 @@ static void uninit(HWND current_window, HDC device)
 
 static BOOL WINAPI detour_wglSwapBuffers(HDC device)
 {
-	HWND current_window = WindowFromDC(device);
+	static bool update_context = true;
 
 	if (request_shutdown)
 	{
-		request_shutdown = false;
+		render_info::shutdown();
 		MH_DisableHook(wglSwapBuffers);
-		uninit(current_window, device);
-		shut_down = true;
+		uninit(device);
+		request_shutdown = false;
 		return wglSwapBuffers(device);
 	}
 
+	HWND current_window = WindowFromDC(device);
+
 	// if already init, and window changed, cleanup and reinit
-	if (!run_once && window != current_window)
+	if (!update_context && window != current_window)
 	{
-		uninit(current_window, device);
-		run_once = true;
+		uninit(device);
+		update_context = true;
 	}
 
-	if (run_once)
+	if (update_context)
 	{
+		// set jni env for render thread
+		JNIEnv* env = nullptr;
+		if (jvm->GetEnv((void**)&env, JNI_VERSION_10) != JNI_OK || !env) logger::error("failed to get env for render thread");
+		jni::set_thread_env(env);
+
 		window = current_window;
 		original_context = wglGetCurrentContext();
 		new_context = wglCreateContext(device);
@@ -122,7 +130,7 @@ static BOOL WINAPI detour_wglSwapBuffers(HDC device)
 		ImGui::StyleColorsDark();
 		ImGui_ImplOpenGL3_Init();
 		ImGui_ImplWin32_Init(window);
-		run_once = false;
+		update_context = false;
 	}
 
 	wglMakeCurrent(device, new_context);
@@ -130,6 +138,19 @@ static BOOL WINAPI detour_wglSwapBuffers(HDC device)
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
+
+
+	ImGui::SetNextWindowPos(ImVec2(0, 0));
+	ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+	render_info::update();
+	ImGui::Begin("Overlay", nullptr,
+		ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBackground);
+	{
+		for (modules::module* module : modules::get_modules())
+			if (module->enabled)
+				module->render();
+	}
+	ImGui::End();
 
 	if (gui::draw)
 	{
@@ -162,8 +183,10 @@ static BOOL WINAPI detour_wglSwapBuffers(HDC device)
 	return original_wglSwapBuffers(device);
 }
 
-bool gui::init()
+bool gui::init(JavaVM* jvm)
 {
+	::jvm = jvm;
+
 	HMODULE opengl = GetModuleHandleA("opengl32.dll");
 	if (!opengl) return false;
 	wglSwapBuffers = (wglSwapBuffers_t)GetProcAddress(opengl, "wglSwapBuffers");
@@ -183,7 +206,7 @@ bool gui::init()
 void gui::shutdown()
 {
 	request_shutdown = true;
-	while (!shut_down);
+	while (request_shutdown);
 	MH_RemoveHook(wglSwapBuffers);
 	MH_Uninitialize();
 }

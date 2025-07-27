@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2002, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -43,8 +43,10 @@ enum {
     JVMTI_VERSION_1_2 = 0x30010200,
     JVMTI_VERSION_9   = 0x30090000,
     JVMTI_VERSION_11  = 0x300B0000,
+    JVMTI_VERSION_19  = 0x30130000,
+    JVMTI_VERSION_21  = 0x30150000,
 
-    JVMTI_VERSION = 0x30000000 + (17 * 0x10000) + ( 0 * 0x100) + 0  /* version: 17.0.0 */
+    JVMTI_VERSION = 0x30000000 + (21 * 0x10000) + ( 0 * 0x100) + 0  /* version: 21.0.0 */
 };
 
 JNIEXPORT jint JNICALL
@@ -372,6 +374,7 @@ typedef enum {
     JVMTI_ERROR_UNSUPPORTED_REDEFINITION_CLASS_MODIFIERS_CHANGED = 70,
     JVMTI_ERROR_UNSUPPORTED_REDEFINITION_METHOD_MODIFIERS_CHANGED = 71,
     JVMTI_ERROR_UNSUPPORTED_REDEFINITION_CLASS_ATTRIBUTE_CHANGED = 72,
+    JVMTI_ERROR_UNSUPPORTED_OPERATION = 73,
     JVMTI_ERROR_UNMODIFIABLE_CLASS = 79,
     JVMTI_ERROR_UNMODIFIABLE_MODULE = 80,
     JVMTI_ERROR_NOT_AVAILABLE = 98,
@@ -427,7 +430,9 @@ typedef enum {
     JVMTI_EVENT_OBJECT_FREE = 83,
     JVMTI_EVENT_VM_OBJECT_ALLOC = 84,
     JVMTI_EVENT_SAMPLED_OBJECT_ALLOC = 86,
-    JVMTI_MAX_EVENT_TYPE_VAL = 86
+    JVMTI_EVENT_VIRTUAL_THREAD_START = 87,
+    JVMTI_EVENT_VIRTUAL_THREAD_END = 88,
+    JVMTI_MAX_EVENT_TYPE_VAL = 88
 } jvmtiEvent;
 
 
@@ -711,7 +716,8 @@ typedef struct {
     unsigned int can_generate_early_vmstart : 1;
     unsigned int can_generate_early_class_hook_events : 1;
     unsigned int can_generate_sampled_object_alloc_events : 1;
-    unsigned int : 4;
+    unsigned int can_support_virtual_threads : 1;
+    unsigned int : 3;
     unsigned int : 16;
     unsigned int : 16;
     unsigned int : 16;
@@ -916,6 +922,16 @@ typedef void (JNICALL *jvmtiEventThreadStart)
      JNIEnv* jni_env,
      jthread thread);
 
+typedef void (JNICALL *jvmtiEventVirtualThreadEnd)
+    (jvmtiEnv *jvmti_env,
+     JNIEnv* jni_env,
+     jthread virtual_thread);
+
+typedef void (JNICALL *jvmtiEventVirtualThreadStart)
+    (jvmtiEnv *jvmti_env,
+     JNIEnv* jni_env,
+     jthread virtual_thread);
+
 typedef void (JNICALL *jvmtiEventVMDeath)
     (jvmtiEnv *jvmti_env,
      JNIEnv* jni_env);
@@ -1014,6 +1030,10 @@ typedef struct {
     jvmtiEventReserved reserved85;
                               /*   86 : Sampled Object Allocation */
     jvmtiEventSampledObjectAlloc SampledObjectAlloc;
+                              /*   87 : Virtual Thread Start */
+    jvmtiEventVirtualThreadStart VirtualThreadStart;
+                              /*   88 : Virtual Thread End */
+    jvmtiEventVirtualThreadEnd VirtualThreadEnd;
 } jvmtiEventCallbacks;
 
 
@@ -1652,11 +1672,15 @@ typedef struct jvmtiInterface_1_ {
   /*   117 :  RESERVED */
   void *reserved117;
 
-  /*   118 :  RESERVED */
-  void *reserved118;
+  /*   118 : Suspend All Virtual Threads */
+  jvmtiError (JNICALL *SuspendAllVirtualThreads) (jvmtiEnv* env,
+    jint except_count,
+    const jthread* except_list);
 
-  /*   119 :  RESERVED */
-  void *reserved119;
+  /*   119 : Resume All Virtual Threads */
+  jvmtiError (JNICALL *ResumeAllVirtualThreads) (jvmtiEnv* env,
+    jint except_count,
+    const jthread* except_list);
 
   /*   120 : Set JNI Function Table */
   jvmtiError (JNICALL *SetJNIFunctionTable) (jvmtiEnv* env,
@@ -1865,6 +1889,11 @@ struct _jvmtiEnv {
     return functions->SuspendThreadList(this, request_count, request_list, results);
   }
 
+  jvmtiError SuspendAllVirtualThreads(jint except_count,
+            const jthread* except_list) {
+    return functions->SuspendAllVirtualThreads(this, except_count, except_list);
+  }
+
   jvmtiError ResumeThread(jthread thread) {
     return functions->ResumeThread(this, thread);
   }
@@ -1873,6 +1902,11 @@ struct _jvmtiEnv {
             const jthread* request_list,
             jvmtiError* results) {
     return functions->ResumeThreadList(this, request_count, request_list, results);
+  }
+
+  jvmtiError ResumeAllVirtualThreads(jint except_count,
+            const jthread* except_list) {
+    return functions->ResumeAllVirtualThreads(this, except_count, except_list);
   }
 
   jvmtiError StopThread(jthread thread,
