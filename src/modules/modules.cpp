@@ -248,8 +248,10 @@ void modules::block_esp::render_options()
 		ImGui::SameLine();
 		ImGui::ColorButton(b.name.data(), b.color);
 		ImGui::SameLine();
+		ImGui::PushID(i);
 		if (ImGui::Button("x"))
 			to_delete[i] = true;
+		ImGui::PopID();
 	}
 	for (int i = 0; i < target_blocks.size(); ++i)
 	{
