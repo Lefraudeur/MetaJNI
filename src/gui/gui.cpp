@@ -3,7 +3,7 @@
 #include "../imgui/imgui_impl_opengl3.h"
 #include "../imgui/imgui_impl_win32.h"
 #include "../modules/modules.hpp"
-#include "render_info.hpp";
+#include "render_info.hpp"
 #include <MinHook.h>
 
 namespace
