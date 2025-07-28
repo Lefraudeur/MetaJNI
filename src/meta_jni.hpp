@@ -313,6 +313,7 @@ namespace jni
 		{
 			assertm(object_instance, (std::string_view)(concat<"called jni::array::set_elements with invalid object_instance, signature", get_signature()>()));
 			if (!object_instance) return;
+			if (!values.size()) return;
 			if constexpr (!is_jni_primitive_type<array_element_type>)
 			{
 				for (jsize i = 0; i < values.size(); ++i)
