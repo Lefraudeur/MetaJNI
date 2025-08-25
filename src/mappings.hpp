@@ -129,9 +129,21 @@ namespace maps
 			return { x.get(), y.get(), z.get() };
 		}
 
+		inline glm::dvec3 to_glm_dvec3()
+		{
+			return { x.get(), y.get(), z.get() };
+		}
+
 		inline glm::vec3 to_glm_vec3()
 		{
 			return { x.get(), y.get(), z.get() };
+		}
+
+		inline void set_glm_dvec3(const glm::dvec3& vec)
+		{
+			x = vec.x;
+			y = vec.y;
+			z = vec.z;
 		}
 	END_KLASS_DEF()
 
@@ -188,6 +200,7 @@ namespace maps
 		jni::field<jfloat, "walkDist"> horizontalSpeed{ *this };
 		jni::field<jfloat, "walkDistO"> prevHorizontalSpeed{ *this };
 
+		jni::field<Vec3d, "deltaMovement"> velocity{ *this };
 
 		inline maths::vector3d get_prev_position()
 		{
@@ -235,6 +248,7 @@ namespace maps
 
 	BEGIN_KLASS_DEF_EX(LivingEntity, "net/minecraft/world/entity/LivingEntity", Entity)
 		jni::field<jint, "attackStrengthTicker"> lastAttackedTicks{ *this };
+		jni::field<jint, "hurtTime"> hurtTime{*this};
 
 		jni::method<jboolean, "isHolding", jni::NOT_STATIC, Item> isHolding{ *this };
 		jni::method<ItemStack, "getMainHandItem"> getMainHandStack{ *this };

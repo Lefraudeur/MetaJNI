@@ -157,8 +157,9 @@ static BOOL WINAPI detour_wglSwapBuffers(HDC device)
 		ImGui::SetNextWindowBgAlpha(0.9f);
 		ImGui::Begin("GUI", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 		{
-			for (modules::module* module : modules::get_modules())
+			for (int i = 0; modules::module* module : modules::get_modules())
 			{
+				ImGui::PushID(i);
 				ImGui::Checkbox(module->get_name(), &module->enabled);
 				if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
 					module->display_options = !module->display_options;
@@ -170,6 +171,8 @@ static BOOL WINAPI detour_wglSwapBuffers(HDC device)
 					module->render_options();
 					ImGui::EndGroup();
 				}
+				ImGui::PopID();
+				++i;
 			}
 		}
 		ImGui::End();

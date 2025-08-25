@@ -220,4 +220,17 @@ namespace modules
 
 		int render_data_task_id;
 	};
+
+	class velocity : public module
+	{
+	public:
+		velocity() : module("Velocity"), multiplier(1.f), last_changed_velocity() {}
+
+		void run(::cache& cache) override;
+		void render_options() override;
+
+	private:
+		float multiplier;
+		glm::dvec3 last_changed_velocity;
+	};
 }
