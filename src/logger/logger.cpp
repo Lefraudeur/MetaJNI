@@ -1,7 +1,7 @@
 #include "logger.hpp"
 
 #ifndef NDEBUG
-static std::ofstream logfile
+static std::ofstream logfile;
 #endif
 
 bool logger::init()
