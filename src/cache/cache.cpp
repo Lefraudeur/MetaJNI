@@ -47,12 +47,6 @@ bool cache::update()
 
 bool cache::update_all()
 {
-	io::netty::channel::Channel channel = theMinecraft.getNetHandler().netManager.get().channel.get();
-	if (!channel) return false;
-	if (!channel.is_instance_of<io::netty::channel::socket::nio::NioSocketChannel>()) return false;
-
-	fd = sun::nio::ch::SocketChannelImpl(io::netty::channel::socket::nio::NioSocketChannel(channel).javaChannel()).fd.get();
-	if (!fd) return false;
 
 	return true;
 }
