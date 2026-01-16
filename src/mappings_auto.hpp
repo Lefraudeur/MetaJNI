@@ -26621,6 +26621,7 @@ namespace java::lang
 	END_KLASS_MEMBERS()
 	BEGIN_KLASS_MEMBERS(ClassLoader)
 		jni::method<java::lang::Class, "findClass", jni::NOT_STATIC, String> findClass{ *this };
+		jni::method<java::lang::Class, "loadClass", jni::NOT_STATIC, String> loadClass{ *this };
 	END_KLASS_MEMBERS()
 	BEGIN_KLASS_MEMBERS(Double)
 		jni::method<jdouble, "doubleValue"> doubleValue{ *this };

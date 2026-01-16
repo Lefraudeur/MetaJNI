@@ -66,7 +66,7 @@ static void mainThread(void* dll)
                 std::string name = class_name;
                 for (size_t it = name.find('/'); it != std::string::npos; it = name.find('/', it + 1))
                     name[it] = '.';
-                jclass found = minecraftClassLoader.findClass(java::lang::String::create(name.c_str()));
+                jclass found = minecraftClassLoader.loadClass(java::lang::String::create(name.c_str()));
                 if (env->ExceptionCheck())
                     env->ExceptionClear();
 
