@@ -76,7 +76,7 @@ namespace jni
 	inline std::mutex _refs_to_delete_mutex{};
 	inline std::function<jclass(const char* class_name)> _custom_find_class{};
 
-	enum class reference_type
+	enum reference_type
 	{
 		LOCAL,
 		GLOBAL

@@ -52,7 +52,7 @@ static void mainThread(void* dll)
         jni::frame frame{}; // when this jni::frame is destroyed, all non global jobject references become invalid
 
         maps::Minecraft Minecraft{};
-        maps::Entity test_global{jni::reference_type::GLOBAL};
+        maps::Entity test_global{jni::GLOBAL};
         maps::EntityPlayerSP EntityPlayerSP{};
 
         std::cout << "injected\n";
