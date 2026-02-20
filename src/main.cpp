@@ -10,7 +10,6 @@
 #include <thread>
 #include <iostream>
 
-
 #ifdef __linux__
 static Display* display = nullptr;
 #endif
@@ -48,43 +47,53 @@ static void mainThread(void* dll)
 
     jni::set_thread_env(env); //this is needed for every new thread that uses the lib
 
-    env->PushLocalFrame(100); //every local ref created after this will be deleted on PopLocalFrame
-
-    maps::Minecraft Minecraft{};
-    maps::EntityPlayerSP EntityPlayerSP{};
-
-    std::cout << "injected\n";
-    std::cout << Minecraft.get_name() << '\n';
-    std::cout << Minecraft.get_signature() << '\n';
-    maps::Minecraft theMinecraft = Minecraft.theMinecraft.get();
-    maps::Minecraft g_theMinecraft = maps::Minecraft(theMinecraft, true);
-    std::cout << "display width test: " << theMinecraft.displayWidth.get() << '\n';
-    theMinecraft.displayWidth = 100;
-    std::cout << "display width test after change: " << theMinecraft.displayWidth.get() << '\n';
-    theMinecraft.clickMouse();
-    std::cout << Minecraft.clickMouse.get_signature() << '\n';
-
-    theMinecraft.resize(800, 600);
-
-    maps::EntityPlayerSP thePlayer = theMinecraft.thePlayer.get();
-    thePlayer.sendChatMessage(maps::String::create("test"));
-    maps::String clientBrand = thePlayer.getClientBrand.call();
-    std::cout << clientBrand.to_string() << '\n';
-    jni::array<maps::EntityPlayerSP> testArray = jni::array<maps::EntityPlayerSP>::create({});
-    std::cout << "test array: " << jobject(testArray) << '\n';
-
-    maps::WorldClient theWorld = theMinecraft.theWorld.get();
-    std::vector<maps::EntityPlayer> playerEntities = jni::array<maps::EntityPlayer>(theWorld.playerEntities.get().toArray()).to_vector();
-
-    for (maps::EntityPlayer& p : playerEntities)
+    // do random shit to test the features of MetaJNI
+    
     {
-        std::cout << p.getName().to_string() << ' ' << p.getHealth() << '\n';
+        jni::frame frame{}; // when this jni::frame is destroyed, all non global jobject references become invalid
+
+        maps::Minecraft Minecraft{};
+        maps::Entity test_global{true}; // this is an empty global reference, it will automatically call NewGlobalRef and DeleteGlobalRef on the jobject it contains
+        maps::EntityPlayerSP EntityPlayerSP{};
+
+        std::cout << "injected\n";
+        std::cout << Minecraft.get_name() << '\n';
+        std::cout << Minecraft.get_signature() << '\n';
+        maps::Minecraft theMinecraft = Minecraft.theMinecraft.get();
+
+        maps::Minecraft g_theMinecraft = theMinecraft.new_global_ref();
+
+        std::cout << "display width test: " << theMinecraft.displayWidth.get() << '\n';
+        theMinecraft.displayWidth = 100;
+        std::cout << "display width test after change: " << theMinecraft.displayWidth.get() << '\n';
+        theMinecraft.clickMouse();
+        std::cout << Minecraft.clickMouse.get_signature() << '\n';
+
+        theMinecraft.resize(800, 600);
+
+        maps::EntityPlayerSP thePlayer(theMinecraft.thePlayer.get());
+        maps::Entity cast(thePlayer);
+
+        g_theMinecraft = maps::Minecraft(std::move(cast));
+        g_theMinecraft = maps::Minecraft{};
+
+        thePlayer.sendChatMessage(maps::String::create("test"));
+        maps::String clientBrand = thePlayer.getClientBrand.call();
+        std::cout << clientBrand.to_string() << '\n';
+        jni::array<maps::EntityPlayerSP> testArray = jni::array<maps::EntityPlayerSP>::create({});
+        std::cout << "test array: " << jobject(testArray) << '\n';
+
+        maps::WorldClient theWorld = theMinecraft.theWorld.get();
+        std::vector<maps::EntityPlayer> playerEntities = jni::array<maps::EntityPlayer>(theWorld.playerEntities.get().toArray()).to_vector();
+
+        for (maps::EntityPlayer& p : playerEntities)
+        {
+            std::cout << p.getName().to_string() << ' ' << p.getHealth() << '\n';
+        }
+
+        maps::URL url = maps::URL::new_object(&maps::URL::constructor, maps::String::create("http://www.example.com/docs/resource1.html"));
+        std::cout << url.toString().to_string() << '\n';
     }
-
-    maps::URL url = maps::URL::new_object(&maps::URL::constructor, maps::String::create("http://www.example.com/docs/resource1.html"));
-    std::cout << url.toString().to_string() << '\n';
-
-    env->PopLocalFrame(nullptr);
 
     while (!is_uninject_key_pressed())
     {

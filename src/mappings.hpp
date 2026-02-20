@@ -17,8 +17,8 @@ namespace maps
 
 		std::string to_string()
 		{
-			if (!object_instance) return std::string();
-			jstring str_obj = (jstring)object_instance;
+			if (!get_jobject()) return std::string();
+			jstring str_obj = (jstring)get_jobject();
 			jsize utf8_size = jni::get_env()->GetStringUTFLength(str_obj);
 			jsize size = jni::get_env()->GetStringLength(str_obj);
 

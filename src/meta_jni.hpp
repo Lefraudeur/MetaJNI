@@ -22,16 +22,36 @@
 	#define assertm(exp, msg) if (!(exp)) { std::cout << (msg) << '\n'; abort(); }
 #endif
 
-#define BEGIN_KLASS_DEF(unobf_klass_name, obf_klass_name) struct unobf_klass_name##_members; using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>; struct unobf_klass_name##_members : public jni::empty_members	{ unobf_klass_name##_members(jclass owner_klass, jobject object_instance, bool is_global_ref) : jni::empty_members(owner_klass, object_instance, is_global_ref) {}
+#define KLASS_DECLARATION(unobf_klass_name, obf_klass_name) \
+struct unobf_klass_name##_members; \
+using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>;
+
+#define BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, inherit_from) \
+struct unobf_klass_name##_members : public inherit_from##_members \
+{ \
+	unobf_klass_name##_members(jclass owner_klass, jobject object_instance, bool is_global_ref) : \
+		inherit_from##_members(owner_klass, object_instance, is_global_ref) \
+	{ \
+	} \
+	\
+	unobf_klass_name##_members(jclass owner_klass, object_wrapper&& o_wrapper) : \
+		inherit_from##_members(owner_klass, std::move(o_wrapper)) \
+	{ \
+	}
+
+#define BEGIN_KLASS_DEF_EX(unobf_klass_name, obf_klass_name, inherit_from) \
+KLASS_DECLARATION(unobf_klass_name, obf_klass_name) \
+BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, inherit_from)
+
+#define BEGIN_KLASS_MEMBERS(unobf_klass_name) BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, jni::empty)
+#define BEGIN_KLASS_DEF(unobf_klass_name, obf_klass_name) BEGIN_KLASS_DEF_EX(unobf_klass_name, obf_klass_name, jni::empty)
 
 #define END_KLASS_DEF()	};
-
-#define BEGIN_KLASS_DEF_EX(unobf_klass_name, obf_klass_name, inherit_from) struct unobf_klass_name##_members; using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>; struct unobf_klass_name##_members : public inherit_from##_members { unobf_klass_name##_members(jclass owner_klass, jobject object_instance, bool is_global_ref) : inherit_from##_members(owner_klass, object_instance, is_global_ref) {}
-
-#define KLASS_DECLARATION(unobf_klass_name, obf_klass_name) struct unobf_klass_name##_members; using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>;
-#define BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, inherit_from) struct unobf_klass_name##_members : public inherit_from##_members { unobf_klass_name##_members(jclass owner_klass, jobject object_instance, bool is_global_ref) : inherit_from##_members(owner_klass, object_instance, is_global_ref) {}
-#define BEGIN_KLASS_MEMBERS(unobf_klass_name) BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, jni::empty)
 #define END_KLASS_MEMBERS()	};
+
+// TODO: faster get_cached_jclass and copy owner_klass when possible instead of reresolving it
+// maybe per thread jclass cache ?
+// or maybe do not even store the owner_klass in each jclass at all, and add a way for the jni::method / jni::field to know to which jni::klass they belong
 
 namespace jni
 {
@@ -180,6 +200,13 @@ namespace jni
 		{
 		}
 
+		object_wrapper(object_wrapper&& other) noexcept :
+			object_instance(other.object_instance),
+			is_global_ref(other.is_global_ref)
+		{
+			other.object_instance = nullptr;
+		}
+
 		virtual ~object_wrapper()
 		{
 			if (is_global_ref)
@@ -196,6 +223,27 @@ namespace jni
 			}
 			else
 				object_instance = other.object_instance;
+			return *this;
+		}
+
+		object_wrapper& operator=(object_wrapper&& other) noexcept
+		{
+			if (!is_global_ref)
+			{
+				object_instance = other.object_instance;
+				return *this;
+			}
+
+			jobject old_instance = object_instance;
+			if (other.is_global_ref)
+			{
+				object_instance = other.object_instance;
+				other.object_instance = nullptr;
+			}
+			else
+				object_instance = (other.object_instance ? get_env()->NewGlobalRef(other.object_instance) : nullptr);
+			if (old_instance) get_env()->DeleteGlobalRef(old_instance);
+
 			return *this;
 		}
 
@@ -224,7 +272,7 @@ namespace jni
 			object_instance = nullptr;
 		}
 
-		operator jobject() const
+		explicit operator jobject() const // made explcit to avoid ambiguity with the constructors that take a jobject, prefer using the object_wrapper one, 
 		{
 			return this->object_instance;
 		}
@@ -234,20 +282,34 @@ namespace jni
 			return this->object_instance;
 		}
 
+		jobject get_jobject() const
+		{
+			return this->object_instance;
+		}
+
 		bool is_global() const
 		{
 			return is_global_ref;
 		}
-
-		jobject object_instance;
+		
 	private:
+		jobject object_instance;
 		bool is_global_ref; //global refs aren't destroyed on PopLocalFrame, and can be shared between threads
 	};
 
 	struct empty_members : public object_wrapper
 	{
+		empty_members(const empty_members& other) = delete; // we must never copy the jni::field / jni::method, as they hold a reference to *this
+		empty_members(empty_members&& other) = delete;
+
 		empty_members(jclass owner_klass, jobject object_instance, bool is_global_ref) :
 			object_wrapper(object_instance, is_global_ref),
+			owner_klass(owner_klass)
+		{
+		}
+
+		empty_members(jclass owner_klass, object_wrapper&& o_wrapper) :
+			object_wrapper(std::move(o_wrapper)),
 			owner_klass(owner_klass)
 		{
 		}
@@ -292,15 +354,38 @@ namespace jni
 	class array : public object_wrapper
 	{
 	public:
+
 		array(jobject object_instance, bool is_global_ref = false) :
 			object_wrapper(object_instance, is_global_ref)
 		{
 		}
 
-		array& operator=(const array& other) //operator= is not inherited by default
+		array(bool is_global_ref = false) :
+			array(nullptr, is_global_ref)
+		{
+		}
+
+		explicit array(const object_wrapper& other) : object_wrapper(other) {};
+		explicit array(object_wrapper&& other) : object_wrapper(other) {};
+
+		array(const array& other) : array((const object_wrapper&)other) {}
+		array(array&& other) noexcept : array(static_cast<object_wrapper&&>(other)) {}
+
+		array& operator=(const array& other)
 		{
 			object_wrapper::operator=(other);
 			return *this;
+		}
+
+		array& operator=(array&& other) noexcept
+		{
+			object_wrapper::operator=(std::move(other));
+			return *this;
+		}
+
+		array new_global_ref() const
+		{
+			return array(this->get_jobject(), true);
 		}
 
 		static constexpr auto get_signature()
@@ -315,45 +400,45 @@ namespace jni
 
 		void set_elements(const std::vector<array_element_type>& values) const
 		{
-			assertm(object_instance, (std::string_view)(concat<"called jni::array::set_elements with invalid object_instance, signature", get_signature()>()));
-			if (!object_instance) return;
+			assertm(this->get_jobject(), (std::string_view)(concat<"called jni::array::set_elements with invalid object_instance, signature", get_signature()>()));
+			if (!this->get_jobject()) return;
 			if (!values.size()) return;
 			if constexpr (!is_jni_primitive_type<array_element_type>)
 			{
 				for (jsize i = 0; i < values.size(); ++i)
-					get_env()->SetObjectArrayElement((jobjectArray)object_instance, i, (jobject)values[i]);
+					get_env()->SetObjectArrayElement((jobjectArray)this->get_jobject(), i, (jobject)values[i]);
 			}
 			if constexpr (std::is_same_v<jboolean, array_element_type>)
 			{
-				get_env()->SetBooleanArrayRegion((jbooleanArray)object_instance, 0, (jsize)values.size(), values.data());
+				get_env()->SetBooleanArrayRegion((jbooleanArray)this->get_jobject(), 0, (jsize)values.size(), values.data());
 			}
 			if constexpr (std::is_same_v<jbyte, array_element_type>)
 			{
-				get_env()->SetByteArrayRegion((jbyteArray)object_instance, 0, (jsize)values.size(), values.data());
+				get_env()->SetByteArrayRegion((jbyteArray)this->get_jobject(), 0, (jsize)values.size(), values.data());
 			}
 			if constexpr (std::is_same_v<jchar, array_element_type>)
 			{
-				get_env()->SetCharArrayRegion((jcharArray)object_instance, 0, (jsize)values.size(), values.data());
+				get_env()->SetCharArrayRegion((jcharArray)this->get_jobject(), 0, (jsize)values.size(), values.data());
 			}
 			if constexpr (std::is_same_v<jshort, array_element_type>)
 			{
-				get_env()->SetShortArrayRegion((jshortArray)object_instance, 0, (jsize)values.size(), values.data());
+				get_env()->SetShortArrayRegion((jshortArray)this->get_jobject(), 0, (jsize)values.size(), values.data());
 			}
 			if constexpr (std::is_same_v<jint, array_element_type>)
 			{
-				get_env()->SetIntArrayRegion((jintArray)object_instance, 0, (jsize)values.size(), values.data());
+				get_env()->SetIntArrayRegion((jintArray)this->get_jobject(), 0, (jsize)values.size(), values.data());
 			}
 			if constexpr (std::is_same_v<jfloat, array_element_type>)
 			{
-				get_env()->SetFloatArrayRegion((jfloatArray)object_instance, 0, (jsize)values.size(), values.data());
+				get_env()->SetFloatArrayRegion((jfloatArray)this->get_jobject(), 0, (jsize)values.size(), values.data());
 			}
 			if constexpr (std::is_same_v<jlong, array_element_type>)
 			{
-				get_env()->SetLongArrayRegion((jlongArray)object_instance, 0, (jsize)values.size(), values.data());
+				get_env()->SetLongArrayRegion((jlongArray)this->get_jobject(), 0, (jsize)values.size(), values.data());
 			}
 			if constexpr (std::is_same_v<jdouble, array_element_type>)
 			{
-				get_env()->SetDoubleArrayRegion((jdoubleArray)object_instance, 0, (jsize)values.size(), values.data());
+				get_env()->SetDoubleArrayRegion((jdoubleArray)this->get_jobject(), 0, (jsize)values.size(), values.data());
 			}
 		}
 
@@ -366,54 +451,54 @@ namespace jni
 			if constexpr (!is_jni_primitive_type<array_element_type>)
 			{
 				for (jsize i = 0; i < length; ++i)
-					vector.push_back(array_element_type(get_env()->GetObjectArrayElement((jobjectArray)object_instance, i)));
+					vector.push_back(array_element_type(get_env()->GetObjectArrayElement((jobjectArray)this->get_jobject(), i)));
 			}
 			if constexpr (std::is_same_v<jboolean, array_element_type>)
 			{
 				std::unique_ptr<jboolean[]> buffer = std::make_unique<jboolean[]>(length);
-				get_env()->GetBooleanArrayRegion((jbooleanArray)object_instance, 0, length, buffer.get());
+				get_env()->GetBooleanArrayRegion((jbooleanArray)this->get_jobject(), 0, length, buffer.get());
 				vector.insert(vector.begin(), buffer.get(), buffer.get() + length);
 			}
 			if constexpr (std::is_same_v<jbyte, array_element_type>)
 			{
 				std::unique_ptr<jbyte[]> buffer = std::make_unique<jbyte[]>(length);
-				get_env()->GetByteArrayRegion((jbyteArray)object_instance, 0, length, buffer.get());
+				get_env()->GetByteArrayRegion((jbyteArray)this->get_jobject(), 0, length, buffer.get());
 				vector.insert(vector.begin(), buffer.get(), buffer.get() + length);
 			}
 			if constexpr (std::is_same_v<jchar, array_element_type>)
 			{
 				std::unique_ptr<jchar[]> buffer = std::make_unique<jchar[]>(length);
-				get_env()->GetCharArrayRegion((jcharArray)object_instance, 0, length, buffer.get());
+				get_env()->GetCharArrayRegion((jcharArray)this->get_jobject(), 0, length, buffer.get());
 				vector.insert(vector.begin(), buffer.get(), buffer.get() + length);
 			}
 			if constexpr (std::is_same_v<jshort, array_element_type>)
 			{
 				std::unique_ptr<jshort[]> buffer = std::make_unique<jshort[]>(length);
-				get_env()->GetShortArrayRegion((jshortArray)object_instance, 0, length, buffer.get());
+				get_env()->GetShortArrayRegion((jshortArray)this->get_jobject(), 0, length, buffer.get());
 				vector.insert(vector.begin(), buffer.get(), buffer.get() + length);
 			}
 			if constexpr (std::is_same_v<jint, array_element_type>)
 			{
 				std::unique_ptr<jint[]> buffer = std::make_unique<jint[]>(length);
-				get_env()->GetIntArrayRegion((jintArray)object_instance, 0, length, buffer.get());
+				get_env()->GetIntArrayRegion((jintArray)this->get_jobject(), 0, length, buffer.get());
 				vector.insert(vector.begin(), buffer.get(), buffer.get() + length);
 			}
 			if constexpr (std::is_same_v<jfloat, array_element_type>)
 			{
 				std::unique_ptr<jfloat[]> buffer = std::make_unique<jfloat[]>(length);
-				get_env()->GetFloatArrayRegion((jfloatArray)object_instance, 0, length, buffer.get());
+				get_env()->GetFloatArrayRegion((jfloatArray)this->get_jobject(), 0, length, buffer.get());
 				vector.insert(vector.begin(), buffer.get(), buffer.get() + length);
 			}
 			if constexpr (std::is_same_v<jlong, array_element_type>)
 			{
 				std::unique_ptr<jlong[]> buffer = std::make_unique<jlong[]>(length);
-				get_env()->GetLongArrayRegion((jlongArray)object_instance, 0, length, buffer.get());
+				get_env()->GetLongArrayRegion((jlongArray)this->get_jobject(), 0, length, buffer.get());
 				vector.insert(vector.begin(), buffer.get(), buffer.get() + length);
 			}
 			if constexpr (std::is_same_v<jdouble, array_element_type>)
 			{
 				std::unique_ptr<jdouble[]> buffer = std::make_unique<jdouble[]>(length);
-				get_env()->GetDoubleArrayRegion((jdoubleArray)object_instance, 0, length, buffer.get());
+				get_env()->GetDoubleArrayRegion((jdoubleArray)this->get_jobject(), 0, length, buffer.get());
 				vector.insert(vector.begin(), buffer.get(), buffer.get() + length);
 			}
 			return vector;
@@ -421,10 +506,10 @@ namespace jni
 
 		jsize get_length() const
 		{
-			assertm(object_instance, (std::string_view)(concat<"called jni::array::get_length() with invalid object_instance, signature: ", get_signature()>()));
-			if (!object_instance)
+			assertm(this->get_jobject(), (std::string_view)(concat<"called jni::array::get_length() with invalid object_instance, signature: ", get_signature()>()));
+			if (!this->get_jobject())
 				return 0;
-			return get_env()->GetArrayLength((jarray)object_instance);
+			return get_env()->GetArrayLength((jarray)this->get_jobject());
 		}
 
 		static array create(const std::vector<array_element_type>& values)
@@ -499,6 +584,7 @@ namespace jni
 		}
 
 		field(const field& other) = delete; // make sure field won't be copied (we store a empty_members reference which must not be copied)
+		field(field&& other) = delete;
 
 		field& operator=(const field_type& new_value)
 		{
@@ -508,147 +594,148 @@ namespace jni
 
 		void set(const field_type& new_value)
 		{
-			assertm(is_static || m.object_instance, (std::string_view)(concat<"called set on a non static field with null object_instance, field: ", get_name(), " ", get_signature()>()));
-			if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return;
+			assertm(is_static || m.get_jobject(), (std::string_view)(concat<"called set on a non static field with null object_instance, field: ", get_name(), " ", get_signature()>()));
+			if (!id || !m.owner_klass || (!is_static && !m.get_jobject())) return;
 			if constexpr (!is_jni_primitive_type<field_type>)
 			{
 				if constexpr (is_static)
 					return get_env()->SetStaticObjectField(m.owner_klass, id, (jobject)new_value);
 				if constexpr (!is_static)
-					return get_env()->SetObjectField(m.object_instance, id, (jobject)new_value);
+					return get_env()->SetObjectField(m.get_jobject(), id, (jobject)new_value);
 			}
 			if constexpr (std::is_same_v<jboolean, field_type>)
 			{
 				if constexpr (is_static)
 					return get_env()->SetStaticBooleanField(m.owner_klass, id, new_value);
 				if constexpr (!is_static)
-					return get_env()->SetBooleanField(m.object_instance, id, new_value);
+					return get_env()->SetBooleanField(m.get_jobject(), id, new_value);
 			}
 			if constexpr (std::is_same_v<jbyte, field_type>)
 			{
 				if constexpr (is_static)
 					return get_env()->SetStaticByteField(m.owner_klass, id, new_value);
 				if constexpr (!is_static)
-					return get_env()->SetByteField(m.object_instance, id, new_value);
+					return get_env()->SetByteField(m.get_jobject(), id, new_value);
 			}
 			if constexpr (std::is_same_v<jchar, field_type>)
 			{
 				if constexpr (is_static)
 					return get_env()->SetStaticCharField(m.owner_klass, id, new_value);
 				if constexpr (!is_static)
-					return get_env()->SetCharField(m.object_instance, id, new_value);
+					return get_env()->SetCharField(m.get_jobject(), id, new_value);
 			}
 			if constexpr (std::is_same_v<jshort, field_type>)
 			{
 				if constexpr (is_static)
 					return get_env()->SetStaticShortField(m.owner_klass, id, new_value);
 				if constexpr (!is_static)
-					return get_env()->SetShortField(m.object_instance, id, new_value);
+					return get_env()->SetShortField(m.get_jobject(), id, new_value);
 			}
 			if constexpr (std::is_same_v<jint, field_type>)
 			{
 				if constexpr (is_static)
 					return get_env()->SetStaticIntField(m.owner_klass, id, new_value);
 				if constexpr (!is_static)
-					return get_env()->SetIntField(m.object_instance, id, new_value);
+					return get_env()->SetIntField(m.get_jobject(), id, new_value);
 			}
 			if constexpr (std::is_same_v<jfloat, field_type>)
 			{
 				if constexpr (is_static)
 					return get_env()->SetStaticFloatField(m.owner_klass, id, new_value);
 				if constexpr (!is_static)
-					return get_env()->SetFloatField(m.object_instance, id, new_value);
+					return get_env()->SetFloatField(m.get_jobject(), id, new_value);
 			}
 			if constexpr (std::is_same_v<jlong, field_type>)
 			{
 				if constexpr (is_static)
 					return get_env()->SetStaticLongField(m.owner_klass, id, new_value);
 				if constexpr (!is_static)
-					return get_env()->SetLongField(m.object_instance, id, new_value);
+					return get_env()->SetLongField(m.get_jobject(), id, new_value);
 			}
 			if constexpr (std::is_same_v<jdouble, field_type>)
 			{
 				if constexpr (is_static)
 					return get_env()->SetStaticDoubleField(m.owner_klass, id, new_value);
 				if constexpr (!is_static)
-					return get_env()->SetDoubleField(m.object_instance, id, new_value);
+					return get_env()->SetDoubleField(m.get_jobject(), id, new_value);
 			}
 		}
 
 		auto get() const
 		{
-			assertm(is_static || m.object_instance, (std::string_view)(concat<"called get on a non static field with null object_instance, field: ", get_name(), " ", get_signature()>()));
+			assertm(is_static || m.get_jobject(), (std::string_view)(concat<"called get on a non static field with null object_instance, field: ", get_name(), " ", get_signature()>()));
+			bool not_valid = !id || !m.owner_klass || (!is_static && !m.get_jobject());
 			if constexpr (!is_jni_primitive_type<field_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return field_type(nullptr);
+				if (not_valid) return field_type(nullptr);
 				if constexpr (is_static)
 					return field_type(get_env()->GetStaticObjectField(m.owner_klass, id));
 				if constexpr (!is_static)
-					return field_type(get_env()->GetObjectField(m.object_instance, id));
+					return field_type(get_env()->GetObjectField(m.get_jobject(), id));
 			}
 			if constexpr (std::is_same_v<jboolean, field_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jboolean(JNI_FALSE);
+				if (not_valid) return jboolean(JNI_FALSE);
 				if constexpr (is_static)
 					return get_env()->GetStaticBooleanField(m.owner_klass, id);
 				if constexpr (!is_static)
-					return get_env()->GetBooleanField(m.object_instance, id);
+					return get_env()->GetBooleanField(m.get_jobject(), id);
 			}
 			if constexpr (std::is_same_v<jbyte, field_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jbyte(0);
+				if (not_valid) return jbyte(0);
 				if constexpr (is_static)
 					return get_env()->GetStaticByteField(m.owner_klass, id);
 				if constexpr (!is_static)
-					return get_env()->GetByteField(m.object_instance, id);
+					return get_env()->GetByteField(m.get_jobject(), id);
 			}
 			if constexpr (std::is_same_v<jchar, field_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jchar(0);
+				if (not_valid) return jchar(0);
 				if constexpr (is_static)
 					return get_env()->GetStaticCharField(m.owner_klass, id);
 				if constexpr (!is_static)
-					return get_env()->GetCharField(m.object_instance, id);
+					return get_env()->GetCharField(m.get_jobject(), id);
 			}
 			if constexpr (std::is_same_v<jshort, field_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jshort(0);
+				if (not_valid) return jshort(0);
 				if constexpr (is_static)
 					return get_env()->GetStaticShortField(m.owner_klass, id);
 				if constexpr (!is_static)
-					return get_env()->GetShortField(m.object_instance, id);
+					return get_env()->GetShortField(m.get_jobject(), id);
 			}
 			if constexpr (std::is_same_v<jint, field_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jint(0);
+				if (not_valid) return jint(0);
 				if constexpr (is_static)
 					return get_env()->GetStaticIntField(m.owner_klass, id);
 				if constexpr (!is_static)
-					return get_env()->GetIntField(m.object_instance, id);
+					return get_env()->GetIntField(m.get_jobject(), id);
 			}
 			if constexpr (std::is_same_v<jfloat, field_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jfloat(0.f);
+				if (not_valid) return jfloat(0.f);
 				if constexpr (is_static)
 					return get_env()->GetStaticFloatField(m.owner_klass, id);
 				if constexpr (!is_static)
-					return get_env()->GetFloatField(m.object_instance, id);
+					return get_env()->GetFloatField(m.get_jobject(), id);
 			}
 			if constexpr (std::is_same_v<jlong, field_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jlong(0LL);
+				if (not_valid) return jlong(0LL);
 				if constexpr (is_static)
 					return get_env()->GetStaticLongField(m.owner_klass, id);
 				if constexpr (!is_static)
-					return get_env()->GetLongField(m.object_instance, id);
+					return get_env()->GetLongField(m.get_jobject(), id);
 			}
 			if constexpr (std::is_same_v<jdouble, field_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jdouble(0.0);
+				if (not_valid) return jdouble(0.0);
 				if constexpr (is_static)
 					return get_env()->GetStaticDoubleField(m.owner_klass, id);
 				if constexpr (!is_static)
-					return get_env()->GetDoubleField(m.object_instance, id);
+					return get_env()->GetDoubleField(m.get_jobject(), id);
 			}
 		}
 
@@ -701,6 +788,7 @@ namespace jni
 		}
 
 		method(const method& other) = delete; // make sure method won't be copied (we store a empty_members reference which must not be copied)
+		method(method&& other) = delete;
 
 		auto operator()(const method_parameters_type&... method_parameters) const
 		{
@@ -709,88 +797,89 @@ namespace jni
 
 		auto call(const method_parameters_type&... method_parameters) const
 		{
-			assertm(is_static || m.object_instance, (std::string_view)(concat<"called call on a non static method with null object_instance, method: ", get_name(), " ", get_signature()>()));
+			assertm(is_static || m.get_jobject(), (std::string_view)(concat<"called call on a non static method with null object_instance, method: ", get_name(), " ", get_signature()>()));
+			bool not_valid = !id || !m.owner_klass || (!is_static && !m.get_jobject());
 			if constexpr (std::is_void_v<method_return_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return;
+				if (not_valid) return;
 				if constexpr (is_static)
 					get_env()->CallStaticVoidMethod(m.owner_klass, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 				if constexpr (!is_static)
-					get_env()->CallVoidMethod(m.object_instance, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
+					get_env()->CallVoidMethod(m.get_jobject(), id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 				return;
 			}
 
 			if constexpr (!is_jni_primitive_type<method_return_type> && !std::is_void_v<method_return_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return method_return_type(nullptr);
+				if (not_valid) return method_return_type(nullptr);
 				if constexpr (is_static)
 					return method_return_type(get_env()->CallStaticObjectMethod(m.owner_klass, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...));
 				if constexpr (!is_static)
-					return method_return_type(get_env()->CallObjectMethod(m.object_instance, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...));
+					return method_return_type(get_env()->CallObjectMethod(m.get_jobject(), id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...));
 			}
 			if constexpr (std::is_same_v<jboolean, method_return_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jboolean(JNI_FALSE);
+				if (not_valid) return jboolean(JNI_FALSE);
 				if constexpr (is_static)
 					return get_env()->CallStaticBooleanMethod(m.owner_klass, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 				if constexpr (!is_static)
-					return get_env()->CallBooleanMethod(m.object_instance, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
+					return get_env()->CallBooleanMethod(m.get_jobject(), id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 			}
 			if constexpr (std::is_same_v<jbyte, method_return_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jbyte(0);
+				if (not_valid) return jbyte(0);
 				if constexpr (is_static)
 					return get_env()->CallStaticByteMethod(m.owner_klass, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 				if constexpr (!is_static)
-					return get_env()->CallByteMethod(m.object_instance, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
+					return get_env()->CallByteMethod(m.get_jobject(), id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 			}
 			if constexpr (std::is_same_v<jchar, method_return_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jchar(0);
+				if (not_valid) return jchar(0);
 				if constexpr (is_static)
 					return get_env()->CallStaticCharMethod(m.owner_klass, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 				if constexpr (!is_static)
-					return get_env()->CallCharMethod(m.object_instance, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
+					return get_env()->CallCharMethod(m.get_jobject(), id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 			}
 			if constexpr (std::is_same_v<jshort, method_return_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jshort(0);
+				if (not_valid) return jshort(0);
 				if constexpr (is_static)
 					return get_env()->CallStaticShortMethod(m.owner_klass, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 				if constexpr (!is_static)
-					return get_env()->CallShortMethod(m.object_instance, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
+					return get_env()->CallShortMethod(m.get_jobject(), id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 			}
 			if constexpr (std::is_same_v<jint, method_return_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jint(0);
+				if (not_valid) return jint(0);
 				if constexpr (is_static)
 					return get_env()->CallStaticIntMethod(m.owner_klass, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 				if constexpr (!is_static)
-					return get_env()->CallIntMethod(m.object_instance, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
+					return get_env()->CallIntMethod(m.get_jobject(), id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 			}
 			if constexpr (std::is_same_v<jfloat, method_return_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jfloat(0.f);
+				if (not_valid) return jfloat(0.f);
 				if constexpr (is_static)
 					return get_env()->CallStaticFloatMethod(m.owner_klass, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 				if constexpr (!is_static)
-					return get_env()->CallFloatMethod(m.object_instance, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
+					return get_env()->CallFloatMethod(m.get_jobject(), id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 			}
 			if constexpr (std::is_same_v<jlong, method_return_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jlong(0LL);
+				if (not_valid) return jlong(0LL);
 				if constexpr (is_static)
 					return get_env()->CallStaticLongMethod(m.owner_klass, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 				if constexpr (!is_static)
-					return get_env()->CallLongMethod(m.object_instance, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
+					return get_env()->CallLongMethod(m.get_jobject(), id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 			}
 			if constexpr (std::is_same_v<jdouble, method_return_type>)
 			{
-				if (!id || !m.owner_klass || (!is_static && !m.object_instance)) return jdouble(0.0);
+				if (not_valid) return jdouble(0.0);
 				if constexpr (is_static)
 					return get_env()->CallStaticDoubleMethod(m.owner_klass, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 				if constexpr (!is_static)
-					return get_env()->CallDoubleMethod(m.object_instance, id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
+					return get_env()->CallDoubleMethod(m.get_jobject(), id, std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...);
 			}
 		}
 
@@ -829,16 +918,36 @@ namespace jni
 	class klass : public members_type
 	{
 	public:
-		klass(jobject object_instance = nullptr, bool is_global_ref = false) :
+		klass(bool is_global_ref = false) :
+			klass(nullptr, is_global_ref)
+		{
+		}
+
+		klass(jobject object_instance, bool is_global_ref = false) :
 			members_type(get_cached_jclass<klass>(), object_instance, is_global_ref) // be careful order of initialization matters
 		{
 		}
 
-		klass(const klass& other) : klass(other.object_instance, other.is_global()) {} // very important to not copy jni::field and method
+		explicit klass(const object_wrapper& other) : klass(other.get_jobject(), other.is_global()) {} // very important to not copy jni::field and method
+		explicit klass(object_wrapper&& other) : members_type(get_cached_jclass<klass>(), std::move(other)) {}
 
-		klass& operator=(const klass& other) //operator= is not inherited by default
+		klass(const klass& other) : klass((const object_wrapper&)other) {}
+		klass(klass&& other) noexcept : klass(static_cast<object_wrapper&&>(other)) {}
+
+		klass new_global_ref() const
+		{
+			return klass(this->get_jobject(), true);
+		}
+
+		klass& operator=(const klass& other)
 		{
 			object_wrapper::operator=(other);
+			return *this;
+		}
+
+		klass& operator=(klass&& other) noexcept
+		{
+			object_wrapper::operator=(std::move(other));
 			return *this;
 		}
 
@@ -873,3 +982,4 @@ namespace jni
 		}
 	};
 }
+
