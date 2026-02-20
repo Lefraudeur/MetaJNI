@@ -15,7 +15,7 @@ C++ 20 required
 maps::Minecraft Minecraft{};
 
 //get a static field
-maps::Minecraft theMinecraft = Minecraft.theMinecraft.get();
+maps::Minecraft theMinecraft =  maps::Minecraft::theMinecraft.get();
 
 //get a non static field
 jint displayWidth = theMinecraft.displayWidth.get();
@@ -49,7 +49,7 @@ Start by creating a header file like `mappings.hpp`, it's also recommended to pu
 - #### Define a class
 	```C++
 	BEGIN_KLASS_DEF(ClassName, "RealJavaClassName")
-	//jni::field and jni::method definitions here
+	//field and method definitions here
 	END_KLASS_DEF()
 	```
 	Here `ClassName` designates the class name in the C++ side, it's the jni::klass<> type you can access via maps::ClassName.
@@ -58,33 +58,43 @@ Start by creating a header file like `mappings.hpp`, it's also recommended to pu
 	
 	```C++
 	BEGIN_KLASS_DEF_EX(ClassName, "RealJavaClassName", ParentPreviousDefinedClass)
-	//jni::field and jni::method definitions here
+	//field and method definitions here
 	END_KLASS_DEF()
 	```
 	Where `ParentPreviousDefinedClass` is the parent class previously defined by `BEGIN_KLASS_DEF(_EX)`
+
+	While this can be useful to not copy code, you can't really replicate fully the inheritance structure of java classes, \
+	and it won't allow you to implicitely downcast from a child type to its parent type; you have to cast explicitely.
+
 - #### Define a field
 	```C++
-	jni::field<FieldType, "realJavaFieldName", is_static> fieldName{ *this };
+	field<FieldType, "realJavaFieldName"> fieldName{ *this };
 	```
 	FieldType represents the type of the field, which can be any of :\
 	`jboolean, jbyte, jchar, jshort, jint, jfloat, jlong, jdouble, jni::array<element_type>, jni::klass<> (defined by BEGIN_KLASS_DEF)`.
 
 	"realJavaFieldName" must be the name of the field in the java side, possibly obfuscated.
 
-	is_static can be `jni::STATIC` or `jni::NOT_STATIC`, if not specified it defaults to `jni::NOT_STATIC`.
+	if the field is static, you can write:
+	```C++
+    inline static static_field<FieldType, "realJavaFieldName"> fieldName{};
+	```
 - #### Define a method
 	```C++
-	jni::method<MethodReturnType, "realJavaMethodName", is_static, parameterType1, parameterType2, parameterTypeN...> methodName{ *this };
+	method<MethodReturnType, "realJavaMethodName", parameterType1, parameterType2, parameterTypeN...> methodName{ *this };
 	```
 	MethodReturnType represents the return type of the method, which can be any of :\
 	`void, jboolean, jbyte, jchar, jshort, jint, jfloat, jlong, jdouble, jni::array<element_type>, jni::klass<> (defined by BEGIN_KLASS_DEF)`.
 
 	"realJavaMethodName" must be the name of the method in the java side, possibly obfuscated.
 
-	is_static can be `jni::STATIC` or `jni::NOT_STATIC`.
-
 	Remaining parameters are the types of the method's parameters, in their corresponding java order, which can be any of :\
 	`jboolean, jbyte, jchar, jshort, jint, jfloat, jlong, jdouble, jni::array<element_type>, jni::klass<> (defined by BEGIN_KLASS_DEF)`.
+
+	if the method is static, you can write:
+	```C++
+    inline static static_method<...> methodName{};
+	```
 ### Cleanup library :
 **Once your program exits**, or when you don't want to use the library anymore, don't forget to call
 ```C++
@@ -183,3 +193,20 @@ Use visual studio or install cmake and run :
 cmake -DCMAKE_BUILD_TYPE=Release -B ./Build
 cmake --build Build --target MetaJNI --config Release
 ```
+
+### Changes from MetaJNI1
+The main improvement is that `jni::field` and `jni::method` do not store a jclass anymore, \
+Instead they have access to the type jni::klass they were defined in at compile time. \
+This reduces memory usage. \
+
+Now you must write `method`/`field` in the jni::klass members definition instead of `jni::method`/`field`, as you would do before. \
+This is because `jni::method`/`jni::field` takes an extra template parameter, \
+which is set to the `jni::klass` its defined in, by a `using method = ...` declaration in the BEGIN_KLASS_MEMBERS_EX macro.
+
+Now, instead of is_static being a template parameter, a static `field`/`method` has its own type:
+`static_field`/`static_method`, and can be stored statically in the members definition : \
+`inline static static_field<...> my_static_field{};` \
+(the jfieldID will be gathered when the field is accessed for the first time)
+
+I considered this to be a major change that would completely break old code using MetaJNI,\
+hence why this is a separated branch

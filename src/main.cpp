@@ -58,7 +58,7 @@ static void mainThread(void* dll)
         std::cout << "injected\n";
         std::cout << Minecraft.get_name() << '\n';
         std::cout << Minecraft.get_signature() << '\n';
-        maps::Minecraft theMinecraft = Minecraft.theMinecraft.get();
+        maps::Minecraft theMinecraft = maps::Minecraft::theMinecraft.get();
 
         maps::Minecraft g_theMinecraft = theMinecraft.new_global_ref();
 
