@@ -330,12 +330,6 @@ namespace jni
 	template<typename T, typename... U> inline constexpr bool is_any_of_type = (std::is_same_v<T, U> || ...);
 	template<typename T> inline constexpr bool is_jni_primitive_type = is_any_of_type<T, jboolean, jbyte, jchar, jshort, jint, jfloat, jlong, jdouble>;
 
-	enum is_static_t : bool
-	{
-		STATIC = true,
-		NOT_STATIC = false
-	};
-
 	struct empty_members : public object_wrapper
 	{
 		empty_members(const empty_members& other) = delete; // we must never copy the jni::field / jni::method, as they hold a reference to *this
@@ -599,6 +593,7 @@ namespace jni
 
 		operator jfieldID() const
 		{
+			init_id();
 			return id;
 		}
 
