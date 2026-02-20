@@ -192,6 +192,7 @@ namespace jni
 			found = (jclass)_custom_find_class(klass_type::get_name());
 
 		assertm(found, (std::string_view)(concat<"failed to find class: ", klass_type::get_name()>()));
+		if (!found) return nullptr;
 
 		found = (jclass)env->NewGlobalRef(found);
 		{
