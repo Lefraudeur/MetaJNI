@@ -1,5 +1,5 @@
 ﻿# MetaJNI
-A header only JNI wrapper that makes using jni safer and easier while having almost no performance impact.
+A header only JNI wrapper that makes using jni safer and easier.
 This branch uses cmake for the example and supports both Windows and Linux (you will have to install X11 dev library).
 C++ 20 required
 
@@ -107,11 +107,20 @@ JNI references are managed as usual, they follow the lifetime of a JNI frame whi
 You can also create a `jni::frame` object, which will push a frame in its constructor, and pop it in its destructor.
 
 If you need a reference to live across JNI frames or threads, MetaJNI provides an easy way to create global references that will be destroyed once the corresponding C++ object is destroyed :\
-Simply pass `true` to the `jni::klass` or `jni::array` constructor. For example:
 ```C++
-maps::Minecraft global_theMinecraft = maps::Minecraft(local_theMinecraft, true);
+maps::Minecraft global_theMinecraft = local_theMinecraft.new_global_ref();
 ```
-⚠️Without passing true to the constructor, the `jni::klass` will store the jobject reference as is, without managing its lifetime. This can lead to rare issues for example in this situation:
+A jni::klass/array can be either initialized to be global or local. \
+Global means it will own the jobject it stores, calling NewGlobalRef on initialization or assignment operator. \
+Local means it wil just store the jobject as is, without managing the reference. \
+Remember to use std::move when possible, to avoid calling env->NewGlobalRef for nothing. \
+
+The assignment operator behaviour can be confusing :
+Basically a jni::klass/jni::array will always keep its reference type at the moment of initialization \
+if it was global, even if you assign it to a local jni:klass/array, it will remain global; \
+If it was local, even if you assign it to a global jni::klass/array it will remain local 
+
+⚠️This can lead to issues for example in this situation:
 ```
 local_theMinecraft = global_theMinecraft;
 ```

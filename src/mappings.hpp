@@ -17,8 +17,8 @@ namespace maps
 
 		std::string to_string()
 		{
-			if (!object_instance) return std::string();
-			jstring str_obj = (jstring)object_instance;
+			if (!get_jobject()) return std::string();
+			jstring str_obj = (jstring)get_jobject();
 			jsize utf8_size = jni::get_env()->GetStringUTFLength(str_obj);
 			jsize size = jni::get_env()->GetStringLength(str_obj);
 
@@ -29,46 +29,46 @@ namespace maps
 	END_KLASS_DEF()
 
 	BEGIN_KLASS_DEF(Collection, "java/util/Collection")
-		jni::method<jni::array<Object>, "toArray"> toArray{ *this };
+		method<jni::array<Object>, "toArray"> toArray{ *this };
 	END_KLASS_DEF()
 	BEGIN_KLASS_DEF_EX(List, "java/util/List", Collection)
 	END_KLASS_DEF()
 	BEGIN_KLASS_DEF(URL, "java/net/URL")
-		jni::constructor<String> constructor{ *this };
+		constructor<String> init{ *this };
 
-		jni::method<String, "toString"> toString{ *this };
+		method<String, "toString"> toString{ *this };
 	END_KLASS_DEF()
 
 
 	BEGIN_KLASS_DEF(Entity, "pk")
-		jni::method<String, "e_"> getName{ *this };
+		method<String, "e_"> getName{ *this };
 	END_KLASS_DEF()
 	BEGIN_KLASS_DEF_EX(EntityLivingBase, "pr", Entity)
-		jni::method<jfloat, "bn"> getHealth{ *this };
+		method<jfloat, "bn"> getHealth{ *this };
 	END_KLASS_DEF()
 	BEGIN_KLASS_DEF_EX(EntityPlayer, "wn", EntityLivingBase)
 	END_KLASS_DEF()
 	BEGIN_KLASS_DEF_EX(EntityPlayerSP, "bew", EntityPlayer)
-		jni::method<void, "e", jni::NOT_STATIC, String> sendChatMessage{ *this };
-		jni::method<String, "w", jni::NOT_STATIC> getClientBrand{ *this };
+		method<void, "e", String> sendChatMessage{ *this };
+		method<String, "w"> getClientBrand{ *this };
 	END_KLASS_DEF()
 
 
 	BEGIN_KLASS_DEF(World, "adm")
-		jni::field<List, "j"> playerEntities{ *this };
+		field<List, "j"> playerEntities{ *this };
 	END_KLASS_DEF()
 
 	BEGIN_KLASS_DEF_EX(WorldClient, "bdb", World)
 	END_KLASS_DEF()
 
 	BEGIN_KLASS_DEF(Minecraft, "ave")
-		jni::field<Minecraft, "S", jni::STATIC> theMinecraft{ *this };
-		jni::field<jint, "d"> displayWidth{ *this };
-		jni::field<EntityPlayerSP, "h"> thePlayer{ *this };
-		jni::field<WorldClient, "f"> theWorld{ *this };
+		inline static static_field<Minecraft, "S"> theMinecraft{};
+		field<jint, "d"> displayWidth{ *this };
+		field<EntityPlayerSP, "h"> thePlayer{ *this };
+		field<WorldClient, "f"> theWorld{ *this };
 
-		jni::method<void, "aw", jni::NOT_STATIC> clickMouse{ *this };
-		jni::method<void, "a", jni::NOT_STATIC, jint, jint> resize{ *this };
+		method<void, "aw"> clickMouse{ *this };
+		method<void, "a", jint, jint> resize{ *this };
 	END_KLASS_DEF()
 
 	KLASS_DECLARATION(ClassLoader, "java/lang/ClassLoader");

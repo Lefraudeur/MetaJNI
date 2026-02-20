@@ -13,7 +13,7 @@ endif()
 project ("MetaJNI")
 
 # Add source to this project's executable.
-add_library(MetaJNI SHARED "src/main.cpp")
+add_library(MetaJNI SHARED "src/main.cpp" )
 
 
 target_include_directories(MetaJNI PUBLIC "include/jni")
