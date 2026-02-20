@@ -50,7 +50,7 @@ void modules::block_esp::on_enable(::cache& cache)
 			for (jint z = z_start; z < z_end; ++z)
 			{
 				jni::frame subframe{};
-				maps::BlockPos blockPos = maps::BlockPos::new_object(&maps::BlockPos::constructor, x, y, z);
+				maps::BlockPos blockPos = maps::BlockPos::new_object(&maps::BlockPos::init, x, y, z);
 				std::string block_name = world.getBlockState(blockPos).toString().to_string();
 
 				std::optional<ImVec4> block_color = get_block_color(block_name);

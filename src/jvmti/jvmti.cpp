@@ -1,6 +1,7 @@
 #include "jvmti.hpp"
 #include "../meta_jni.hpp"
 #include <sstream>
+#include "../logger/logger.hpp"
 
 jvmti::jvmti(JavaVM* jvm)
 {
@@ -21,18 +22,19 @@ jvmti::operator bool()
 
 maps::Class jvmti::find_loaded_class(const char* class_name)
 {
-	if (!jvmti_env) return nullptr;
+	if (!jvmti_env) return maps::Class{};
 
 	jint class_count = 0;
 	jclass* classes = nullptr;
 	jclass found_class = nullptr;
 	
 	jvmti_env->GetLoadedClasses(&class_count, &classes);
-	if (!class_count || !classes) return nullptr;
+	if (!class_count || !classes) return maps::Class{};
 
 	for (jint i = 0; i < class_count; ++i)
 	{
-		std::string signature = get_class_signature(classes[i]);
+		std::string signature = get_class_signature(maps::Class(classes[i]));
+		logger::log(signature);
 		if (signature[0] == 'L' && signature.back() == ';')
 			signature = signature.substr(1, signature.size() - 2);
 		if (signature == class_name)
@@ -49,7 +51,7 @@ maps::Class jvmti::find_loaded_class(const char* class_name)
 
 	jvmti_env->Deallocate((unsigned char*)classes);
 
-	return found_class;
+	return maps::Class(found_class);
 }
 
 std::string jvmti::get_class_signature(const maps::Class& klass)

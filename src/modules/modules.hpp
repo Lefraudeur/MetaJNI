@@ -123,7 +123,7 @@ namespace modules
 
 		bool lock_target = true; // continue aiming the same target even if a closer target exist
 		bool require_left_click = true;
-		maps::AbstractClientPlayerEntity locked_target{ nullptr, true };
+		maps::AbstractClientPlayerEntity locked_target{ jni::GLOBAL };
 	};
 
 	class reach : public module

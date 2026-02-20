@@ -15,11 +15,11 @@ static bool _valid = false;
 
 struct jni_refs
 {
-	maps::MinecraftClient instance{ nullptr, jni::GLOBAL_REF };
-	maps::GameRenderer gameRenderer{ nullptr, jni::GLOBAL_REF };
-	maps::RenderTickCounter renderTickCounter{ nullptr, jni::GLOBAL_REF };
-	maps::SimpleOption bobView{ nullptr , jni::GLOBAL_REF };
-	maps::SimpleOption fov{ nullptr, jni::GLOBAL_REF };
+	maps::MinecraftClient instance{ jni::GLOBAL };
+	maps::GameRenderer gameRenderer{ jni::GLOBAL };
+	maps::RenderTickCounter renderTickCounter{ jni::GLOBAL };
+	maps::SimpleOption bobView{ jni::GLOBAL };
+	maps::SimpleOption fov{ jni::GLOBAL };
 };
 static alignas(alignof(jni_refs)) uint8_t refs_data[sizeof(jni_refs)]{};
 static jni_refs* refs = nullptr;

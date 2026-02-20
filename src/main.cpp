@@ -44,7 +44,8 @@ static void do_with_jni(JavaVM* jvm)
     jni::frame frame{}; // every local ref follow this frame object lifetime
 
     maps::Class minecraftClass(jvmti.find_loaded_class(maps::MinecraftClient::get_name()));
-    maps::URLClassLoader minecraftClassLoader(jvmti.get_class_ClassLoader(minecraftClass), jni::GLOBAL_REF);
+    if (!minecraftClass) logger::error("failed to get minecraft_class");
+    maps::URLClassLoader minecraftClassLoader(jvmti.get_class_ClassLoader(minecraftClass).new_global_ref());
     jni::set_custom_find_class([&minecraftClassLoader](const char* class_name) -> jclass
         {
             jni::frame frame{ 3 };
@@ -70,6 +71,7 @@ static void do_with_jni(JavaVM* jvm)
     while (!is_uninject_key_pressed())
     {
         // concern : since we do not run our jni code in the game thread, isn't there a risk of race condition between the java code and the jni code ?
+        // same issue with the gui being in a different thread
         if (!cache.update())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(64));

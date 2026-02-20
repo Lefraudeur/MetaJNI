@@ -10,12 +10,12 @@ public:
 	bool is_valid() const;
 	bool update();
 
-	maps::MinecraftClient instance{ nullptr, true };
-	maps::ClientWorld world{ nullptr, true };
-	maps::ClientPlayerEntity player{ nullptr, true };
-	maps::List players{ nullptr, true };
-	maps::GameOptions options{ nullptr, true };
-	maps::Mouse mouse{ nullptr, true };
+	maps::MinecraftClient instance{jni::GLOBAL};
+	maps::ClientWorld world{ jni::GLOBAL };
+	maps::ClientPlayerEntity player{ jni::GLOBAL };
+	maps::List players{ jni::GLOBAL };
+	maps::GameOptions options{ jni::GLOBAL };
+	maps::Mouse mouse{ jni::GLOBAL };
 private:
 	bool _is_valid = false;
 };

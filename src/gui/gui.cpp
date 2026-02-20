@@ -5,6 +5,7 @@
 #include "../modules/modules.hpp"
 #include "render_info.hpp"
 #include <MinHook.h>
+#include "../logger/logger.hpp"
 
 namespace
 {
