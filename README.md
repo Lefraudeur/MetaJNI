@@ -1,4 +1,6 @@
-﻿# MetaJNI
+﻿You may prefer metaJNI2 : https://github.com/Lefraudeur/MetaJNI/tree/metaJNI2
+
+# MetaJNI
 A header only JNI wrapper that makes using jni safer and easier.
 This branch uses cmake for the example and supports both Windows and Linux (you will have to install X11 dev library).
 C++ 20 required
