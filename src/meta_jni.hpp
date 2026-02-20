@@ -10,9 +10,8 @@
 #include <type_traits>
 #include <memory>
 #include <vector>
-#include <mutex>
-#include <shared_mutex>
 #include <cstdint>
+#include <mutex>
 #include <functional>
 #include <atomic>
 
@@ -135,6 +134,7 @@ namespace jni
 #endif
 	}
 
+	// custom_find_class is expected to return a jclass (local reference)
 	inline void set_custom_find_class(std::function<jclass(const char* class_name)> find_class)
 	{
 		_custom_find_class = find_class;
@@ -174,34 +174,32 @@ namespace jni
 
 	template<typename klass_type> struct jclass_cache
 	{
-		inline static std::shared_mutex mutex{};
-		inline static jclass value = nullptr;
+		inline static std::atomic<jclass> value = nullptr;
 	};
 
 	template<typename klass_type> inline jclass get_cached_jclass() //findClass
 	{
 		JNIEnv* env = get_env();
 		if (!env) return nullptr;
-		jclass& cached = jclass_cache<klass_type>::value;
-		{
-			std::shared_lock shared_lock{ jclass_cache<klass_type>::mutex };
-			if (cached) return cached;
-		}
-		jclass local = env->FindClass(klass_type::get_name());
+
+		std::atomic<jclass>& cached = jclass_cache<klass_type>::value;
+		if (jclass(cached)) return jclass(cached);
+
+		jclass found = env->FindClass(klass_type::get_name());
 		if (env->ExceptionCheck())
 			env->ExceptionClear();
-		jclass found = (jclass)env->NewGlobalRef(local);
 		if (!found && _custom_find_class)
-			found = (jclass)env->NewGlobalRef(_custom_find_class(klass_type::get_name()));
+			found = (jclass)_custom_find_class(klass_type::get_name());
+
 		assertm(found, (std::string_view)(concat<"failed to find class: ", klass_type::get_name()>()));
-		{
-			std::unique_lock unique_lock{ jclass_cache<klass_type>::mutex };
-			cached = found;
-		}
+
+		found = (jclass)env->NewGlobalRef(found);
 		{
 			std::lock_guard lock{ _refs_to_delete_mutex };
 			_refs_to_delete.push_back(found);
 		}
+
+		cached = found;
 		return found;
 	}
 
