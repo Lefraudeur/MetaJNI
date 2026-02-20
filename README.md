@@ -138,20 +138,25 @@ In this situation local_theMinecraft stores the same jobject as global_theMinecr
 
 #### Object creation
 - #### Define a constructor
-	A `jni::constructor<parameterType1, parameterType2, parameterTypeN...>` is basically the same as `jni::method<void, "<init>", jni::NOT_STATIC, parameterType1, parameterType2, parameterTypeN...>`\
+	A `constructor<parameterType1, parameterType2, parameterTypeN...>` is basically the same as `method<void, "<init>", jni::NOT_STATIC, parameterType1, parameterType2, parameterTypeN...>`\
 	add it to your klass definition in the mappings, for example :
 	```
 	BEGIN_KLASS_DEF(URL, "java/net/URL")
-		jni::constructor<String> constructor{ *this }; // the java/net/URL constructor takes a String as parameter
+		constructor<String> init{ *this }; // the java/net/URL constructor takes a String as parameter
 	END_KLASS_DEF()
 	```
 - #### Construct a new object
-	New objects can be created using `CLASS_NAME_::new_object(&CLASS_NAME_::constructor, parameters...)` \
+	New objects can be created using `CLASS_NAME_::new_object(&CLASS_NAME_::init, parameters...)` \
 	Where CLASS_NAME is a jni::klass<> type defined by BEGIN_KLASS_DEF, for example :
-	```
-	maps::URL url = maps::URL::new_object(&maps::URL::constructor, String.create("http://www.example.com/docs/resource1.html"));
+	```C++
+	maps::URL url = maps::URL::new_object(&maps::URL::init, maps::String::create("http://www.example.com/docs/resource1.html"));
 	```
 	Implicit type casting does not work with this template. For example, you will have to write `jint(3)` instead of `3`.
+
+	Or if you prefer, you can also create a new object this way:
+    ```C++
+	maps::URL url = maps::URL{}.init.new_object(maps::String::create("http://www.example.com/docs/resource1.html"));
+    ```
 
 #### Separe klass declaration and definition
 Often you will have 2 klass definitions that depend from eachother, or you simply don't want to bother about the order in which you define your klasses.\

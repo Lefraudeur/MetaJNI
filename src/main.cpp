@@ -92,8 +92,11 @@ static void mainThread(void* dll)
             std::cout << p.getName().to_string() << ' ' << p.getHealth() << '\n';
         }
 
-        maps::URL url = maps::URL::new_object(&maps::URL::init, maps::String::create("http://www.example.com/docs/resource1.html"));
+        maps::String str = maps::String::create("http://www.example.com/docs/resource1.html");
+        maps::URL url = maps::URL::new_object(&maps::URL::init, str);
         std::cout << url.toString().to_string() << '\n';
+        url = maps::URL{}.init.new_object(str);
+        std::cout << url.toString().to_string() << std::endl;
     }
 
     while (!is_uninject_key_pressed())

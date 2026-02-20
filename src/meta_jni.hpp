@@ -864,11 +864,6 @@ namespace jni
 	{
 	public:
 
-		operator jmethodID() const
-		{
-			return id;
-		}
-
 		static constexpr auto get_name()
 		{
 			return method_name;
@@ -895,6 +890,12 @@ namespace jni
 				if (new_id) id = new_id;
 			}
 			assertm(new_id, (const char*)(concat<"failed to find methodID: ", get_name(), " ", get_signature()>()));
+		}
+
+		operator jmethodID() const
+		{
+			init_id();
+			return id;
 		}
 
 		auto operator()(const method_parameters_type&... method_parameters) const
@@ -1073,7 +1074,16 @@ namespace jni
 
 
 	template<typename o_klass, class... method_parameters_type>
-	using constructor = method<o_klass, void, "<init>", method_parameters_type...>;
+	class constructor : public method<o_klass, void, "<init>", method_parameters_type...>
+	{
+	public:
+		using method<o_klass, void, "<init>", method_parameters_type...>::method;
+
+		o_klass new_object(const method_parameters_type&... method_parameters)
+		{
+			return o_klass{ jni::get_env()->NewObject(get_cached_jclass<o_klass>(), jmethodID(*this), std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...) };
+		}
+	};
 
 
 	template<string_litteral class_name, class members_type>
