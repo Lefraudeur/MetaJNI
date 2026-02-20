@@ -174,9 +174,6 @@ I try to find the best compromise between the easiness of the mappings and of th
 Using platform dependent C api for TLS / thread management instead of thread_local / std::thread can be questionable,\
 however these features do not work well with dll injection (or may require extra steps I don't know about)
 
-Right now get_cached_jclass is called very frequently but is really slow because of the mutex.\
-I think it can be recoded without using one.
-
 While c++ templates are fun, useful, and very powerful, \
 coding another program that writes repetitive code for you would give way more possibilites
 
