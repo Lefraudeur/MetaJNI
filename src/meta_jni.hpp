@@ -65,9 +65,6 @@ BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, inherit_from)
 #define END_KLASS_DEF()	};
 #define END_KLASS_MEMBERS()	};
 
-// TODO: faster get_cached_jclass and copy owner_klass when possible instead of reresolving it
-// maybe per thread jclass cache ?
-// or maybe do not even store the owner_klass in each jclass at all, and add a way for the jni::method / jni::field to know to which jni::klass they belong
 
 namespace jni
 {
@@ -591,12 +588,6 @@ namespace jni
 			return get_signature_for_type<field_type>();
 		}
 
-		operator jfieldID() const
-		{
-			init_id();
-			return id;
-		}
-
 		static void init_id()
 		{
 			if (jfieldID(id)) return;
@@ -608,6 +599,12 @@ namespace jni
 				if (new_id) id = new_id;
 			}
 			assertm(new_id, (std::string_view)(concat<"failed to find fieldID: ", get_name(), " ", get_signature()>()));
+		}
+
+		operator jfieldID() const
+		{
+			init_id();
+			return id;
 		}
 
 		static_field() = default;
@@ -730,13 +727,7 @@ namespace jni
 			return get_signature_for_type<field_type>();
 		}
 
-		operator jfieldID() const
-		{
-			return id;
-		}
-
-		field(const empty_members& m) :
-			m(m)
+		static void init_id()
 		{
 			if (jfieldID(id)) return;
 			jclass owner_klass = get_cached_jclass<o_klass>();
@@ -747,6 +738,17 @@ namespace jni
 				if (new_id) id = new_id;
 			}
 			assertm(new_id, (std::string_view)(concat<"failed to find fieldID: ", get_name(), " ", get_signature()>()));
+		}
+
+		operator jfieldID() const
+		{
+			init_id();
+			return id;
+		}
+
+		field(const empty_members& m) :
+			m(m)
+		{
 		}
 
 		field(const field& other) = delete; // make sure field won't be copied (we store a empty_members reference which must not be copied)
@@ -760,6 +762,7 @@ namespace jni
 
 		void set(const field_type& new_value)
 		{
+			init_id();
 			assertm(m.get_jobject(), (std::string_view)(concat<"called set on a non static field with null object_instance\n class: ", o_klass::get_name(), " field: ", get_name(), " ", get_signature()>()));
 			jclass owner_klass = get_cached_jclass<o_klass>();
 			if (!jfieldID(id) || !owner_klass || !m.get_jobject()) return;
@@ -794,6 +797,7 @@ namespace jni
 
 		auto get() const
 		{
+			init_id();
 			assertm(m.get_jobject(), (std::string_view)(concat<"called get on a non static field with null object_instance\n class: ", o_klass::get_name(), " field: ", get_name(), " ", get_signature()>()));
 			jclass owner_klass = get_cached_jclass<o_klass>();
 			bool not_valid = (!jfieldID(id) || !owner_klass || !m.get_jobject());
@@ -966,11 +970,6 @@ namespace jni
 	class method
 	{
 	public:
-		operator jmethodID() const
-		{
-			return id;
-		}
-
 		static constexpr auto get_name()
 		{
 			return method_name;
@@ -981,8 +980,7 @@ namespace jni
 			return concat<"(", get_signature_for_type<method_parameters_type>()..., ")", get_signature_for_type<method_return_type>()>();
 		}
 
-		method(const empty_members& m) :
-			m(m)
+		static void init_id()
 		{
 			if (jmethodID(id)) return;
 			jclass owner_klass = get_cached_jclass<o_klass>();
@@ -995,6 +993,17 @@ namespace jni
 			assertm(new_id, (const char*)(concat<"failed to find methodID: ", get_name(), " ", get_signature()>()));
 		}
 
+		operator jmethodID() const
+		{
+			init_id();
+			return id;
+		}
+
+		method(const empty_members& m) :
+			m(m)
+		{
+		}
+
 		method(const method& other) = delete; // make sure method won't be copied (we store a empty_members reference which must not be copied)
 		method(method&& other) = delete;
 
@@ -1005,6 +1014,7 @@ namespace jni
 
 		auto call(const method_parameters_type&... method_parameters) const
 		{
+			init_id();
 			assertm(m.get_jobject(), (std::string_view)(concat<"called call on a non static method with null object_instance, method: ", get_name(), " ", get_signature()>()));
 			jclass owner_klass = get_cached_jclass<o_klass>();
 			bool not_valid = !jmethodID(id) || !owner_klass || !m.get_jobject();
