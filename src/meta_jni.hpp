@@ -45,13 +45,13 @@ struct unobf_klass_name##_members : public inherit_from##_members \
 	using constructor = jni::constructor<unobf_klass_name, method_parameters_type...>; \
 	\
 	\
-	unobf_klass_name##_members(jclass owner_klass, const jni::object_wrapper& o_wrapper) : \
-		inherit_from##_members(owner_klass, o_wrapper) \
+	unobf_klass_name##_members(const jni::object_wrapper& o_wrapper) : \
+		inherit_from##_members(o_wrapper) \
 	{ \
 	} \
 	\
-	unobf_klass_name##_members(jclass owner_klass, jni::object_wrapper&& o_wrapper) : \
-		inherit_from##_members(owner_klass, std::move(o_wrapper)) \
+	unobf_klass_name##_members(jni::object_wrapper&& o_wrapper) : \
+		inherit_from##_members(std::move(o_wrapper)) \
 	{ \
 	}
 
@@ -332,12 +332,12 @@ namespace jni
 		empty_members(const empty_members& other) = delete; // we must never copy the jni::field / jni::method, as they hold a reference to *this
 		empty_members(empty_members&& other) = delete;
 
-		empty_members(jclass owner_klass, const object_wrapper& o_wrapper) :
+		empty_members(const object_wrapper& o_wrapper) :
 			object_wrapper(o_wrapper)
 		{
 		}
 
-		empty_members(jclass owner_klass, object_wrapper&& o_wrapper) :
+		empty_members(object_wrapper&& o_wrapper) :
 			object_wrapper(std::move(o_wrapper))
 		{
 		}
@@ -373,7 +373,7 @@ namespace jni
 	public:
 		explicit array(reference_type ref_type = reference_type::LOCAL) : array(jni::object_wrapper{ ref_type }) {}
 		explicit array(const object_wrapper& other) : object_wrapper(other) {};
-		explicit array(object_wrapper&& other) : object_wrapper(other) {};
+		explicit array(object_wrapper&& other) : object_wrapper(std::move(other)) {};
 
 		array(const array& other) : array((const object_wrapper&)other) {}
 		array(array&& other) noexcept : array(static_cast<object_wrapper&&>(other)) {}
@@ -1097,8 +1097,8 @@ namespace jni
 	public:
 
 		explicit klass(reference_type ref_type = reference_type::LOCAL) : klass(jni::object_wrapper{ ref_type }) {}
-		explicit klass(const object_wrapper& other) : members_type(get_cached_jclass<klass>(), other) {} // very important to not copy jni::field and method
-		explicit klass(object_wrapper&& other) : members_type(get_cached_jclass<klass>(), std::move(other)) {}
+		explicit klass(const object_wrapper& other) : members_type(other) {} // very important to not copy jni::field and method
+		explicit klass(object_wrapper&& other) : members_type(std::move(other)) {}
 
 		klass(const klass& other) : klass((const object_wrapper&)other) {}
 		klass(klass&& other) noexcept : klass(static_cast<object_wrapper&&>(other)) {}
