@@ -61,8 +61,8 @@ namespace maps
 	BEGIN_KLASS_DEF_EX(WorldClient, "bdb", World)
 	END_KLASS_DEF()
 
-	BEGIN_KLASS_DEF(Minecraft, "ave")
-		inline static static_field<Minecraft, "S"> theMinecraft{};
+	BEGIN_MULTI_KLASS_DEF(Minecraft, ("ave", "net/minecraft/client/Minecraft"))
+		inline static multi_static_field < Minecraft, jni::strs{ "S", "theMinecraft"} > theMinecraft{};
 		field<jint, "d"> displayWidth{ *this };
 		field<EntityPlayerSP, "h"> thePlayer{ *this };
 		field<WorldClient, "f"> theWorld{ *this };

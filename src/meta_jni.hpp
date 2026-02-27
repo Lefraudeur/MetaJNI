@@ -272,7 +272,7 @@ namespace jni
 	using string_litterals = tuple_litteral<string_litteral_ts...>;
 
 	template<string_litteral_t... string_litteral_ts>
-	using fgfgjghjghjuk = tuple_litteral<string_litteral_ts...>;
+	using strs = string_litterals<string_litteral_ts...>;
 
 
 	template<tuple_litteral tuple, size_t... is>

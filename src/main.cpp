@@ -101,8 +101,6 @@ static void mainThread(void* dll)
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    //constexpr jni::string_litterals test{ "ha" , "be"};
-
     jni::shutdown();
     jvm->DetachCurrentThread();
 
