@@ -56,8 +56,6 @@ static void mainThread(void* dll)
         maps::EntityPlayerSP EntityPlayerSP{};
 
         std::cout << "injected\n";
-        std::cout << Minecraft.get_name() << '\n';
-        std::cout << Minecraft.get_signature() << '\n';
         maps::Minecraft theMinecraft = maps::Minecraft::theMinecraft.get();
 
         maps::Minecraft g_theMinecraft = theMinecraft.new_global_ref();
@@ -66,7 +64,6 @@ static void mainThread(void* dll)
         theMinecraft.displayWidth = 100;
         std::cout << "display width test after change: " << theMinecraft.displayWidth.get() << '\n';
         theMinecraft.clickMouse();
-        std::cout << Minecraft.clickMouse.get_signature() << '\n';
 
         theMinecraft.resize(800, 600);
 

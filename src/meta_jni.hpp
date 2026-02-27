@@ -14,6 +14,8 @@
 #include <mutex>
 #include <functional>
 #include <atomic>
+#include <algorithm>
+#include <utility>
 
 #ifdef NDEBUG
 	#define assertm(exp, msg) ;
@@ -32,26 +34,39 @@ struct unobf_klass_name##_members : public inherit_from##_members \
 	template <typename field_type, jni::string_litteral field_name> \
 	using field = jni::field<unobf_klass_name, field_type, field_name>; \
 	\
+	template <typename field_type, jni::string_litterals field_names> \
+	using multi_field = jni::multi_field<unobf_klass_name, field_type, field_names>; \
+    \
 	template <typename field_type, jni::string_litteral field_name> \
 	using static_field = jni::static_field<unobf_klass_name, field_type, field_name>; \
 	\
+	template <typename field_type, jni::string_litterals field_names> \
+	using multi_static_field = jni::multi_static_field<unobf_klass_name, field_type, field_names>; \
+	\
+    \
 	template <typename method_return_type, jni::string_litteral method_name, class... method_parameters_type> \
 	using method = jni::method<unobf_klass_name, method_return_type, method_name, method_parameters_type...>; \
+    \
+	template <typename method_return_type, jni::string_litterals method_names, class... method_parameters_type> \
+	using multi_method = jni::multi_method<unobf_klass_name, method_return_type, method_names, method_parameters_type...>; \
     \
 	template <typename method_return_type, jni::string_litteral method_name, class... method_parameters_type> \
 	using static_method = jni::static_method<unobf_klass_name, method_return_type, method_name, method_parameters_type...>; \
 	\
+	template <typename method_return_type, jni::string_litterals method_names, class... method_parameters_type> \
+	using multi_static_method = jni::multi_static_method<unobf_klass_name, method_return_type, method_names, method_parameters_type...>; \
+    \
 	template <class... method_parameters_type> \
 	using constructor = jni::constructor<unobf_klass_name, method_parameters_type...>; \
 	\
 	\
-	unobf_klass_name##_members(jclass owner_klass, const jni::object_wrapper& o_wrapper) : \
-		inherit_from##_members(owner_klass, o_wrapper) \
+	unobf_klass_name##_members(const jni::object_wrapper& o_wrapper) : \
+		inherit_from##_members(o_wrapper) \
 	{ \
 	} \
 	\
-	unobf_klass_name##_members(jclass owner_klass, jni::object_wrapper&& o_wrapper) : \
-		inherit_from##_members(owner_klass, std::move(o_wrapper)) \
+	unobf_klass_name##_members(jni::object_wrapper&& o_wrapper) : \
+		inherit_from##_members(std::move(o_wrapper)) \
 	{ \
 	}
 
@@ -137,10 +152,12 @@ namespace jni
 		_custom_find_class = find_class;
 	}
 
+
+
 	template<size_t N>
 	struct string_litteral
 	{
-		constexpr string_litteral(const char(&str)[N])
+		consteval string_litteral(const char(&str)[N])
 		{
 			std::copy_n(str, N, value);
 		}
@@ -155,7 +172,7 @@ namespace jni
 		char value[N];
 	};
 
-	template<string_litteral... strs> inline constexpr auto concat()
+	template<string_litteral... strs> inline consteval auto concat()
 	{
 		constexpr std::size_t size = ((sizeof(strs.value) - 1) + ...); //-1 to not include null terminator (dumb)
 		char concatenated[size + 1] = { '\0' }; //+1 for null terminator
@@ -168,6 +185,161 @@ namespace jni
 		concatenated[size] = '\0';
 		return string_litteral(concatenated);
 	}
+
+	template<typename T> struct is_string_litteral : public std::false_type {};
+	template<size_t N> struct is_string_litteral<string_litteral<N>> : public std::true_type {};
+
+	template<typename T> concept string_litteral_t = is_string_litteral<T>::value;
+
+
+
+
+
+	// recursive tuple implementation, because std::tuple is not a structural type
+	template<size_t i, typename T> struct tuple_litteral_leaf
+	{
+		consteval tuple_litteral_leaf(const T& v) : value(v) {}
+		T value;
+	};
+
+	template<std::size_t i, typename... types>
+	struct tuple_litteral_impl;
+
+	template<size_t i> struct tuple_litteral_impl<i> // base type, ends recursion, specialization of tuple_litteral_impl with empty types param pack
+	{
+	};
+
+	template<size_t i, typename head, typename... others> struct tuple_litteral_impl<i, head, others...> :  // specialisation of tuple_litteral_impl, non empty types param pack
+		public tuple_litteral_leaf<i, head>,
+		// first type of "others" parameter pack, becomes head, and remaining types in the pack become "others",
+		// recursion until others is empty and we inherit from base type tuple_litteral_impl<length> (specialized to end recursion)
+		public tuple_litteral_impl<i + 1, others...>
+	{
+		consteval tuple_litteral_impl(const head& h, const others&... o) :
+			tuple_litteral_leaf<i, head>(h),
+			tuple_litteral_impl<i + 1, others...>(o...)
+		{
+		}
+	};
+
+	template<typename... items>
+	using tuple_litteral = tuple_litteral_impl<0, items...>;
+
+	template<typename T>
+	struct tuple_litteral_transform_type
+	{
+		using type = T;
+	};
+
+	template<size_t N>
+	struct tuple_litteral_transform_type<char[N]>
+	{
+		using type = string_litteral<N>;
+	};
+
+	template<typename T>
+	using tuple_litteral_transform_type_t = typename tuple_litteral_transform_type<T>::type;
+
+	// deduction guide, if constructor param of type const T&, instantiate tuple_litteral with type T, 
+	// special case if T is char[N], in which case use string_litteral<N>
+	template<typename... items>
+	tuple_litteral_impl(const items&...) -> tuple_litteral<tuple_litteral_transform_type_t<items>...>;
+
+	template<typename... items> consteval size_t tuple_litteral_size(const tuple_litteral<items...>& tuple)
+	{
+		return sizeof...(items);
+	}
+
+	template<size_t i, typename head, typename... others>
+	consteval const head& tuple_litteral_get(const tuple_litteral_impl<i, head, others...>& tuple)
+	{
+		return tuple.tuple_litteral_leaf<i, head>::value;
+	};
+
+	template<string_litteral_t... string_litteral_ts>
+	using string_litterals = tuple_litteral<string_litteral_ts...>;
+
+	template<tuple_litteral tuple, size_t... is>
+	// std::index_sequence parameter used just to deduce is to 0,1,2,3,...
+	constexpr void tuple_litteral_foreach_impl(const auto& callable, std::index_sequence<is...>)
+	{
+		(callable.template operator() < is > (tuple_litteral_get<is>(tuple)), ...);
+	}
+
+	template<tuple_litteral tuple>
+	constexpr void tuple_litteral_foreach(const auto& callable)
+	{
+		tuple_litteral_foreach_impl<tuple>(callable, std::make_index_sequence<tuple_litteral_size(tuple)>{});
+	}
+
+	template<size_t i, size_t tot_size>
+	consteval auto space_or_empty_string_litteral()
+	{
+		if constexpr (i == tot_size - 1) return string_litteral("");
+		else return string_litteral(" ");
+	}
+
+	template<string_litteral_t... items, size_t... is>
+	consteval auto string_litterals_join_impl(string_litterals<items...> tuple, std::index_sequence<is...>)
+	{
+		constexpr size_t tuple_size = sizeof...(items);
+		constexpr size_t size = ((sizeof(tuple_litteral_get<is>(tuple).value) - 1) + ...) + tuple_size - 1;
+		char result[size + 1] = { '\0' };
+		auto foreach = [i = 0, &result](const auto& s, bool space) mutable
+			{
+				for (int n = 0; n < sizeof(s.value) - 1; ++n)
+					result[i++] = s.value[n];
+				if (space)
+					result[i++] = ' ';
+			};
+		(foreach(tuple_litteral_get<is>(tuple), (is == tuple_size - 1 ? false : true)), ...);
+
+		result[size] = '\0';
+		return string_litteral(result);
+	}
+	template<string_litteral_t... items>
+	consteval auto string_litterals_join(string_litterals<items...> tuple)
+	{
+		return string_litterals_join_impl(tuple, std::make_index_sequence<sizeof...(items)>{});
+	}
+
+	template<tuple_litteral tuple, size_t... is>
+	consteval auto tuple_litteral_map_impl(std::index_sequence<is...>, auto lambda)
+	{
+		return tuple_litteral{ lambda.template operator()<is, tuple_litteral_get<is>(tuple) > ()... };
+	}
+
+	template<tuple_litteral tuple>
+	consteval auto tuple_litteral_map(auto lambda)
+	{
+		return tuple_litteral_map_impl<tuple>(std::make_index_sequence<tuple_litteral_size(tuple)>{}, lambda);
+	}
+
+	template<size_t i, typename... items> consteval auto tuple_litteral_get_or_last(const tuple_litteral<items...>& tuple)
+	{
+		if constexpr (i >= sizeof...(items))
+			return tuple_litteral_get<sizeof...(items) - 1>(tuple);
+		else
+			return tuple_litteral_get<i>(tuple);
+	}
+
+	template<size_t... sizes> consteval size_t get_max()
+	{
+		size_t max = 0;
+		([&max](size_t size)
+		{
+			if (size > max) max = size;
+		}(sizes), ...);
+		return max;
+	}
+
+	template<tuple_litteral... tuples> consteval size_t tuple_litteral_get_max_size()
+	{
+		return get_max<tuple_litteral_size(tuples)...>();
+	}
+
+
+
 
 	template<typename klass_type> struct jclass_cache
 	{
@@ -182,13 +354,22 @@ namespace jni
 		std::atomic<jclass>& cached = jclass_cache<klass_type>::value;
 		if (jclass(cached)) return jclass(cached);
 
-		jclass found = env->FindClass(klass_type::get_name());
-		if (env->ExceptionCheck())
-			env->ExceptionClear();
-		if (!found && _custom_find_class)
-			found = (jclass)_custom_find_class(klass_type::get_name());
 
-		assertm(found, (std::string_view)(concat<"failed to find class: ", klass_type::get_name()>()));
+		constexpr string_litterals class_names = klass_type::get_names();
+
+		jclass found = nullptr;
+		tuple_litteral_foreach<class_names>([&found, env]<size_t i>(const auto& class_name)
+		{
+			if (found) return;
+			found = env->FindClass(class_name);
+			if (env->ExceptionCheck())
+				env->ExceptionClear();
+			if (!found && _custom_find_class)
+				found = (jclass)_custom_find_class(class_name);
+		});
+
+
+		assertm(found, (std::string_view)(concat<"failed to find class: ", klass_type::get_descriptive_name()>()));
 		if (!found) return nullptr;
 
 		found = (jclass)env->NewGlobalRef(found);
@@ -320,6 +501,7 @@ namespace jni
 		}
 		
 	private:
+		// warning order matters; ref_type must be initialized before object_instance
 		reference_type ref_type; //global refs aren't destroyed on PopLocalFrame, and can be shared between threads
 		jobject object_instance;
 	};
@@ -332,39 +514,40 @@ namespace jni
 		empty_members(const empty_members& other) = delete; // we must never copy the jni::field / jni::method, as they hold a reference to *this
 		empty_members(empty_members&& other) = delete;
 
-		empty_members(jclass owner_klass, const object_wrapper& o_wrapper) :
+		empty_members(const object_wrapper& o_wrapper) :
 			object_wrapper(o_wrapper)
 		{
 		}
 
-		empty_members(jclass owner_klass, object_wrapper&& o_wrapper) :
+		empty_members(object_wrapper&& o_wrapper) :
 			object_wrapper(std::move(o_wrapper))
 		{
 		}
 	};
 
-	template<class T> inline constexpr auto get_signature_for_type()
+	// T should be jni::array or jni::klass
+	template<class T> inline consteval auto get_signatures_for_type()
 	{
 		if constexpr (std::is_void_v<T>)
-			return string_litteral("V");
+			return string_litterals("V");
 		if constexpr (!is_jni_primitive_type<T> && !std::is_void_v<T>)
-			return T::get_signature();
+			return T::get_signatures();
 		if constexpr (std::is_same_v<jboolean, T>)
-			return string_litteral("Z");
+			return string_litterals("Z");
 		if constexpr (std::is_same_v<jbyte, T>)
-			return string_litteral("B");
+			return string_litterals("B");
 		if constexpr (std::is_same_v<jchar, T>)
-			return string_litteral("C");
+			return string_litterals("C");
 		if constexpr (std::is_same_v<jshort, T>)
-			return string_litteral("S");
+			return string_litterals("S");
 		if constexpr (std::is_same_v<jint, T>)
-			return string_litteral("I");
+			return string_litterals("I");
 		if constexpr (std::is_same_v<jfloat, T>)
-			return string_litteral("F");
+			return string_litterals("F");
 		if constexpr (std::is_same_v<jlong, T>)
-			return string_litteral("J");
+			return string_litterals("J");
 		if constexpr (std::is_same_v<jdouble, T>)
-			return string_litteral("D");
+			return string_litterals("D");
 	}
 
 	template<class array_element_type>
@@ -373,7 +556,7 @@ namespace jni
 	public:
 		explicit array(reference_type ref_type = reference_type::LOCAL) : array(jni::object_wrapper{ ref_type }) {}
 		explicit array(const object_wrapper& other) : object_wrapper(other) {};
-		explicit array(object_wrapper&& other) : object_wrapper(other) {};
+		explicit array(object_wrapper&& other) : object_wrapper(std::move(other)) {};
 
 		array(const array& other) : array((const object_wrapper&)other) {}
 		array(array&& other) noexcept : array(static_cast<object_wrapper&&>(other)) {}
@@ -395,19 +578,28 @@ namespace jni
 			return array(this->get_jobject(), true);
 		}
 
-		static constexpr auto get_signature()
+		static consteval auto get_signatures()
 		{
-			return concat<"[", get_signature_for_type<array_element_type>()>();
+			return tuple_litteral_map<get_signatures_for_type<array_element_type>()>(
+			[]<size_t i, auto signature>()
+			{
+				return concat<"[", signature>();
+			});
 		}
 
-		static constexpr auto get_name() //this is used for FindClass
+		static consteval auto get_names() //this is used by get_cached_jclass
 		{
-			return get_signature();
+			return get_signatures();
+		}
+
+		static consteval auto get_descriptive_name()
+		{
+			return string_litterals_join(get_names());
 		}
 
 		void set_elements(const std::vector<array_element_type>& values) const
 		{
-			assertm(this->get_jobject(), (std::string_view)(concat<"called jni::array::set_elements with invalid object_instance, signature", get_signature()>()));
+			assertm(this->get_jobject(), (std::string_view)(concat<"called jni::array::set_elements with invalid object_instance: ", get_descriptive_name()>()));
 			if (!this->get_jobject()) return;
 			if (!values.size()) return;
 			if constexpr (!is_jni_primitive_type<array_element_type>)
@@ -513,7 +705,7 @@ namespace jni
 
 		jsize get_length() const
 		{
-			assertm(this->get_jobject(), (std::string_view)(concat<"called jni::array::get_length() with invalid object_instance, signature: ", get_signature()>()));
+			assertm(this->get_jobject(), (std::string_view)(concat<"called jni::array::get_length() with invalid object_instance: ", get_descriptive_name()>()));
 			if (!this->get_jobject())
 				return 0;
 			return get_env()->GetArrayLength((jarray)this->get_jobject());
@@ -573,19 +765,24 @@ namespace jni
 	};
 
 	// o_klass is a jni::klass, used to know to what class this field belongs to
-	template<typename o_klass, typename field_type, string_litteral field_name>
-	class static_field
+	template<typename o_klass, typename field_type, string_litterals field_names>
+	class multi_static_field
 	{
 	public:
 
-		static constexpr auto get_name()
+		static consteval auto get_names()
 		{
-			return field_name;
+			return field_names;
 		}
 
-		static constexpr auto get_signature()
+		static consteval auto get_signatures()
 		{
-			return get_signature_for_type<field_type>();
+			return get_signatures_for_type<field_type>();
+		}
+
+		static consteval auto get_descriptive_name()
+		{
+			return concat< string_litterals_join(field_names), " : ", string_litterals_join(get_signatures()) >();
 		}
 
 		static void init_id()
@@ -595,10 +792,16 @@ namespace jni
 			jfieldID new_id = nullptr;
 			if (owner_klass)
 			{
-				new_id = get_env()->GetStaticFieldID(owner_klass, get_name(), get_signature());
+				tuple_litteral_foreach<field_names>([&new_id, owner_klass]<size_t i>(const auto& field_name)
+				{
+					if (new_id) return;
+					constexpr string_litterals signatures = get_signatures();
+					new_id = get_env()->GetStaticFieldID(owner_klass, field_name, tuple_litteral_get_or_last<i>(signatures));
+				});
+
 				if (new_id) id = new_id;
 			}
-			assertm(new_id, (std::string_view)(concat<"failed to find fieldID: ", get_name(), " ", get_signature()>()));
+			assertm(new_id, (std::string_view)(concat<"failed to find fieldID: ", get_descriptive_name()>()));
 		}
 
 		operator jfieldID() const
@@ -607,12 +810,12 @@ namespace jni
 			return id;
 		}
 
-		static_field() = default;
+		multi_static_field() = default;
 
-		static_field(const static_field& other) = delete; // make sure field won't be copied (we store a empty_members reference which must not be copied)
-		static_field(static_field&& other) = delete;
+		multi_static_field(const multi_static_field& other) = delete; // make sure field won't be copied (we store a empty_members reference which must not be copied)
+		multi_static_field(multi_static_field&& other) = delete;
 
-		static_field& operator=(const field_type& new_value)
+		multi_static_field& operator=(const field_type& new_value)
 		{
 			set(new_value);
 			return *this;
@@ -713,18 +916,28 @@ namespace jni
 	};
 
 	template<typename o_klass, typename field_type, string_litteral field_name>
-	class field
+	using static_field = multi_static_field < o_klass, field_type, string_litterals{ field_name } > ;
+
+
+
+	template<typename o_klass, typename field_type, string_litterals field_names>
+	class multi_field
 	{
 	public:
 
-		static constexpr auto get_name()
+		static consteval auto get_names()
 		{
-			return field_name;
+			return field_names;
 		}
 
-		static constexpr auto get_signature()
+		static consteval auto get_signatures()
 		{
-			return get_signature_for_type<field_type>();
+			return get_signatures_for_type<field_type>();
+		}
+
+		static consteval auto get_descriptive_name()
+		{
+			return concat< string_litterals_join(field_names), " : ", string_litterals_join(get_signatures()) >();
 		}
 
 		static void init_id()
@@ -734,10 +947,16 @@ namespace jni
 			jfieldID new_id = nullptr;
 			if (owner_klass)
 			{
-				new_id = get_env()->GetFieldID(owner_klass, get_name(), get_signature());
+				tuple_litteral_foreach<field_names>([&new_id, owner_klass]<size_t i>(const auto& field_name)
+				{
+					if (new_id) return;
+					constexpr string_litterals signatures = get_signatures();
+					new_id = get_env()->GetFieldID(owner_klass, field_name, tuple_litteral_get_or_last<i>(signatures));
+				});
+
 				if (new_id) id = new_id;
 			}
-			assertm(new_id, (std::string_view)(concat<"failed to find fieldID: ", get_name(), " ", get_signature()>()));
+			assertm(new_id, (std::string_view)(concat<"failed to find fieldID: ", get_descriptive_name()>()));
 		}
 
 		operator jfieldID() const
@@ -746,15 +965,15 @@ namespace jni
 			return id;
 		}
 
-		field(const empty_members& m) :
+		multi_field(const empty_members& m) :
 			m(m)
 		{
 		}
 
-		field(const field& other) = delete; // make sure field won't be copied (we store a empty_members reference which must not be copied)
-		field(field&& other) = delete;
+		multi_field(const multi_field& other) = delete; // make sure field won't be copied (we store a empty_members reference which must not be copied)
+		multi_field(multi_field&& other) = delete;
 
-		field& operator=(const field_type& new_value)
+		multi_field& operator=(const field_type& new_value)
 		{
 			set(new_value);
 			return *this;
@@ -763,7 +982,7 @@ namespace jni
 		void set(const field_type& new_value)
 		{
 			init_id();
-			assertm(m.get_jobject(), (std::string_view)(concat<"called set on a non static field with null object_instance\n class: ", o_klass::get_name(), " field: ", get_name(), " ", get_signature()>()));
+			assertm(m.get_jobject(), (std::string_view)(concat<"called set on a non static field with null object_instance : ", get_descriptive_name()>()));
 			jclass owner_klass = get_cached_jclass<o_klass>();
 			if (!jfieldID(id) || !owner_klass || !m.get_jobject()) return;
 
@@ -798,7 +1017,7 @@ namespace jni
 		auto get() const
 		{
 			init_id();
-			assertm(m.get_jobject(), (std::string_view)(concat<"called get on a non static field with null object_instance\n class: ", o_klass::get_name(), " field: ", get_name(), " ", get_signature()>()));
+			assertm(m.get_jobject(), (std::string_view)(concat<"called get on a non static field with null object_instance : ", get_descriptive_name()>()));
 			jclass owner_klass = get_cached_jclass<o_klass>();
 			bool not_valid = (!jfieldID(id) || !owner_klass || !m.get_jobject());
 			if constexpr (!is_jni_primitive_type<field_type>)
@@ -858,25 +1077,32 @@ namespace jni
 		inline static std::atomic<jfieldID> id{};
 	};
 
-	template<typename o_klass, typename method_return_type, string_litteral method_name, class... method_parameters_type>
-	class static_method
+	template<typename o_klass, typename field_type, string_litteral field_name>
+	using field = multi_field< o_klass, field_type, string_litterals{ field_name } > ;
+
+	template<typename o_klass, typename method_return_type, string_litterals method_names, class... method_parameters_type>
+	class multi_static_method
 	{
 	public:
 
-		static constexpr auto get_name()
+		static consteval auto get_descriptive_name()
 		{
-			return method_name;
+			return string_litterals_join(method_names);
 		}
 
-		static constexpr auto get_signature()
+		static consteval auto get_signatures()
 		{
-			return concat<"(", get_signature_for_type<method_parameters_type>()..., ")", get_signature_for_type<method_return_type>()>();
+			return tuple_litteral_map<method_names>(
+			[]<size_t i, auto method_name>()
+			{
+				return concat< "(", tuple_litteral_get_or_last<i>(get_signatures_for_type<method_parameters_type>())..., ")", tuple_litteral_get_or_last<i>(get_signatures_for_type<method_return_type>()) >();
+			});
 		}
 
-		static_method() = default;
+		multi_static_method() = default;
 
-		static_method(const static_method& other) = delete; // make sure method won't be copied (we store a empty_members reference which must not be copied)
-		static_method(static_method&& other) = delete;
+		multi_static_method(const multi_static_method& other) = delete; // make sure method won't be copied (we store a empty_members reference which must not be copied)
+		multi_static_method(multi_static_method&& other) = delete;
 
 		static void init_id()
 		{
@@ -885,10 +1111,16 @@ namespace jni
 			jmethodID new_id = nullptr;
 			if (owner_klass)
 			{
-				new_id = get_env()->GetStaticMethodID(owner_klass, get_name(), get_signature());
+				tuple_litteral_foreach<method_names>([&new_id, owner_klass]<size_t i>(const auto& field_name)
+				{
+					if (new_id) return;
+					constexpr string_litterals signatures = get_signatures();
+					new_id = get_env()->GetStaticMethodID(owner_klass, field_name, tuple_litteral_get_or_last<i>(signatures));
+				});
+
 				if (new_id) id = new_id;
 			}
-			assertm(new_id, (const char*)(concat<"failed to find methodID: ", get_name(), " ", get_signature()>()));
+			assertm(new_id, (std::string_view)(concat<"failed to find methodID: ", get_descriptive_name()>()));
 		}
 
 		operator jmethodID() const
@@ -965,19 +1197,26 @@ namespace jni
 		inline static std::atomic<jmethodID> id{};
 	};
 
-
 	template<typename o_klass, typename method_return_type, string_litteral method_name, class... method_parameters_type>
-	class method
+	using static_method = multi_static_method < o_klass, method_return_type, string_litterals{ method_name }, method_parameters_type... > ;
+
+
+	template<typename o_klass, typename method_return_type, string_litterals method_names, class... method_parameters_type>
+	class multi_method
 	{
 	public:
-		static constexpr auto get_name()
+		static consteval auto get_descriptive_name()
 		{
-			return method_name;
+			return string_litterals_join(method_names);
 		}
 
-		static constexpr auto get_signature()
+		static consteval auto get_signatures()
 		{
-			return concat<"(", get_signature_for_type<method_parameters_type>()..., ")", get_signature_for_type<method_return_type>()>();
+			return tuple_litteral_map<method_names>(
+				[]<size_t i, auto method_name>()
+			{
+				return concat< "(", tuple_litteral_get<i>(get_signatures_for_type<method_parameters_type>())..., ")", tuple_litteral_get<i>(get_signatures_for_type<method_return_type>()) >();
+			});
 		}
 
 		static void init_id()
@@ -987,10 +1226,16 @@ namespace jni
 			jmethodID new_id = nullptr;
 			if (owner_klass)
 			{
-				new_id = get_env()->GetMethodID(owner_klass, get_name(), get_signature());
+				tuple_litteral_foreach<method_names>([&new_id, owner_klass]<size_t i>(const auto& field_name)
+				{
+					if (new_id) return;
+					constexpr string_litterals signatures = get_signatures();
+					new_id = get_env()->GetMethodID(owner_klass, field_name, tuple_litteral_get_or_last<i>(signatures));
+				});
+
 				if (new_id) id = new_id;
 			}
-			assertm(new_id, (const char*)(concat<"failed to find methodID: ", get_name(), " ", get_signature()>()));
+			assertm(new_id, (std::string_view)(concat<"failed to find methodID: ", get_descriptive_name()>()));
 		}
 
 		operator jmethodID() const
@@ -999,13 +1244,13 @@ namespace jni
 			return id;
 		}
 
-		method(const empty_members& m) :
+		multi_method(const empty_members& m) :
 			m(m)
 		{
 		}
 
-		method(const method& other) = delete; // make sure method won't be copied (we store a empty_members reference which must not be copied)
-		method(method&& other) = delete;
+		multi_method(const multi_method& other) = delete; // make sure method won't be copied (we store a empty_members reference which must not be copied)
+		multi_method(multi_method&& other) = delete;
 
 		auto operator()(const method_parameters_type&... method_parameters) const
 		{
@@ -1015,7 +1260,7 @@ namespace jni
 		auto call(const method_parameters_type&... method_parameters) const
 		{
 			init_id();
-			assertm(m.get_jobject(), (std::string_view)(concat<"called call on a non static method with null object_instance, method: ", get_name(), " ", get_signature()>()));
+			assertm(m.get_jobject(), (std::string_view)(concat<"called call on a non static method with null object_instance : ", get_descriptive_name()>()));
 			jclass owner_klass = get_cached_jclass<o_klass>();
 			bool not_valid = !jmethodID(id) || !owner_klass || !m.get_jobject();
 			if constexpr (std::is_void_v<method_return_type>)
@@ -1077,12 +1322,15 @@ namespace jni
 		inline static std::atomic<jmethodID> id;
 	};
 
+	template<typename o_klass, typename method_return_type, string_litteral method_name, class... method_parameters_type>
+	using method = multi_method < o_klass, method_return_type, string_litterals{ method_name }, method_parameters_type... > ;
+
 
 	template<typename o_klass, class... method_parameters_type>
-	class constructor : public method<o_klass, void, "<init>", method_parameters_type...>
+	class constructor : public multi_method< o_klass, void, string_litterals{ "<init>" }, method_parameters_type... >
 	{
 	public:
-		using method<o_klass, void, "<init>", method_parameters_type...>::method;
+		using multi_method < o_klass, void, string_litterals{ "<init>" }, method_parameters_type... > ::multi_method;
 
 		o_klass new_object(const method_parameters_type&... method_parameters)
 		{
@@ -1091,52 +1339,64 @@ namespace jni
 	};
 
 
-	template<string_litteral class_name, class members_type>
-	class klass : public members_type
+	template<string_litterals class_names, class members_type>
+	class multi_klass : public members_type
 	{
 	public:
 
-		explicit klass(reference_type ref_type = reference_type::LOCAL) : klass(jni::object_wrapper{ ref_type }) {}
-		explicit klass(const object_wrapper& other) : members_type(get_cached_jclass<klass>(), other) {} // very important to not copy jni::field and method
-		explicit klass(object_wrapper&& other) : members_type(get_cached_jclass<klass>(), std::move(other)) {}
+		explicit multi_klass(reference_type ref_type = reference_type::LOCAL) : multi_klass(jni::object_wrapper{ ref_type }) {}
+		explicit multi_klass(const object_wrapper& other) : members_type(other) {} // very important to not copy jni::field and method
+		explicit multi_klass(object_wrapper&& other) : members_type(std::move(other)) {}
 
-		klass(const klass& other) : klass((const object_wrapper&)other) {}
-		klass(klass&& other) noexcept : klass(static_cast<object_wrapper&&>(other)) {}
+		multi_klass(const multi_klass& other) : multi_klass((const object_wrapper&)other) {}
+		multi_klass(multi_klass&& other) noexcept : multi_klass(static_cast<object_wrapper&&>(other)) {}
 
-		klass new_global_ref() const
+		multi_klass new_global_ref() const
 		{
-			return klass({ this->get_jobject(), reference_type::GLOBAL });
+			return multi_klass({ this->get_jobject(), reference_type::GLOBAL });
 		}
 
-		klass& operator=(const klass& other)
+		multi_klass& operator=(const multi_klass& other)
 		{
 			object_wrapper::operator=(other);
 			return *this;
 		}
 
-		klass& operator=(klass&& other) noexcept
+		multi_klass& operator=(multi_klass&& other) noexcept
 		{
 			object_wrapper::operator=(std::move(other));
 			return *this;
 		}
 
 		template<class... method_parameters_type>
-		static klass new_object(jni::constructor<klass, method_parameters_type...> members_type::* constructor, const method_parameters_type&... method_parameters) // tbh I was just playing with member pointers
+		static multi_klass new_object(jni::constructor<multi_klass, method_parameters_type...> members_type::* constructor, const method_parameters_type&... method_parameters) // tbh I was just playing with member pointers
 		{
-			klass tmp{}; //lmao
-			return klass{ jni::get_env()->NewObject(get_cached_jclass<klass>(), jmethodID(tmp.*constructor), std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...) };
+			multi_klass tmp{}; //lmao
+			return multi_klass{ jni::get_env()->NewObject(get_cached_jclass<multi_klass>(), jmethodID(tmp.*constructor), std::conditional_t<is_jni_primitive_type<method_parameters_type>, method_parameters_type, jobject>(method_parameters)...) };
 		}
 
-		static constexpr auto get_name()
+		static consteval auto get_descriptive_name()
 		{
-			return class_name;
+			return string_litterals_join(class_names);
 		}
 
-		static constexpr auto get_signature()
+		static consteval auto get_names()
 		{
-			return concat<"L", class_name, ";">();
+			return class_names;
+		}
+
+		static consteval auto get_signatures()
+		{
+			return tuple_litteral_map<class_names>(
+			[]<size_t i, auto class_name>()
+			{
+				return concat<"L", class_name, ";">(); 
+			});
 		}
 	};
+
+	template<string_litteral class_name, class members_type>
+	using klass = multi_klass<string_litterals{class_name}, members_type>;
 
 	class frame
 	{
