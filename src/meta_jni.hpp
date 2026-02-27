@@ -365,7 +365,7 @@ namespace jni
 		}
 
 		explicit array(const object_wrapper& other) : object_wrapper(other) {};
-		explicit array(object_wrapper&& other) : object_wrapper(other) {};
+		explicit array(object_wrapper&& other) : object_wrapper(std::move(other)) {};
 
 		array(const array& other) : array((const object_wrapper&)other) {}
 		array(array&& other) noexcept : array(static_cast<object_wrapper&&>(other)) {}
