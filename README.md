@@ -1,11 +1,35 @@
 ﻿This branch adds support for multi_klass, multi_method, multi_field, \
 allowing a klass/method/field to have multiple obfuscated names to resolve the jclass/jmethodID/jfieldID
 
+(Not working / untested)
+
+The way the jclass/jmethodID/jfieldID should be resolved is still unclear, we obviously can't check every possible name-signature combination.\
+At the moment : \
+Let's say we have:
 ```
+BEGIN_MULTI_KLASS_DEF(KlassA, ("KlassA_name0", "KlassA_name1", ..., "KlassA_nameN"))
+...
+END_KLASS_DEF()
+
+BEGIN_KLASS_DEF(KlassB, "KlassB_name")
+	multi_field<KlassA, {"fieldA_name0", "fieldA_name1", ..., "fieldA_nameN2"}> fieldA{*this};
+END_KLASS_DEF()
 ```
 
-The way the jclass/jmethodID/jfieldID should be resolved is still unclear.
+possible signatures for fieldA are : "LKlassA_name0;", "LKlassA_name1;", ...
 
+for each field_name of index i,\
+it will try to resolve the fieldID with the name field_name,\
+and the possible signature at index i: "LKlassA_namei;" \
+if i > N (if there is no posible signature at index i) then it will use the last possible signature
+
+Same resolution logic is used for methods.
+
+This implies that if there are more KlassA_names than fieldA_names (N > N2), fieldA won't be looked up using signatures which index is superior to N2
+
+This leads to some non intuitive subtilities, that will be hard to document. 
+
+Code complexity increased greatly, which could cause some inconsistencies between compilers, or cause the compiler to run out of memory
 
 # MetaJNI
 A header only JNI wrapper that makes using jni safer and easier.
