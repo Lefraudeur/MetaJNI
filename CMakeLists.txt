@@ -1,7 +1,7 @@
 ﻿# CMakeList.txt : CMake project for MetaJNI2, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.12)
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -25,9 +25,7 @@ if(MSVC)
 	set_property(TARGET MetaJNI PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET MetaJNI PROPERTY CXX_STANDARD 20)
-endif()
+set_property(TARGET MetaJNI PROPERTY CXX_STANDARD 20)
 
 if(WIN32)
 	target_include_directories(MetaJNI PUBLIC "include/jni/win32")

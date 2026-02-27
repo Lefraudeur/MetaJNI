@@ -1,10 +1,6 @@
 #pragma once
 
-#ifdef _WIN32
-	#include <Windows.h>
-#elif defined(__linux__)
-	#include <pthread.h>
-#endif
+#include <stddef.h>
 #include <jni.h>
 #include <string_view>
 #include <type_traits>
@@ -17,6 +13,12 @@
 #include <algorithm>
 #include <utility>
 
+#ifdef _WIN32
+	#include <Windows.h>
+#elif defined(__linux__)
+	#include <pthread.h>
+#endif
+
 #ifdef NDEBUG
 	#define assertm(exp, msg) ;
 #else
@@ -27,6 +29,10 @@
 #define KLASS_DECLARATION(unobf_klass_name, obf_klass_name) \
 struct unobf_klass_name##_members; \
 using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>;
+
+#define MULTI_KLASS_DECLARATION(unobf_klass_name, obf_klass_names) \
+struct unobf_klass_name##_members; \
+using unobf_klass_name = jni::multi_klass<jni::string_litterals(obf_klass_names), unobf_klass_name##_members>;
 
 #define BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, inherit_from) \
 struct unobf_klass_name##_members : public inherit_from##_members \
@@ -74,8 +80,14 @@ struct unobf_klass_name##_members : public inherit_from##_members \
 KLASS_DECLARATION(unobf_klass_name, obf_klass_name) \
 BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, inherit_from)
 
+#define BEGIN_MULTI_KLASS_DEF_EX(unobf_klass_name, obf_klass_names, inherit_from) \
+MULTI_KLASS_DECLARATION(unobf_klass_name, obf_klass_names) \
+BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, inherit_from)
+
 #define BEGIN_KLASS_MEMBERS(unobf_klass_name) BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, jni::empty)
 #define BEGIN_KLASS_DEF(unobf_klass_name, obf_klass_name) BEGIN_KLASS_DEF_EX(unobf_klass_name, obf_klass_name, jni::empty)
+
+#define BEGIN_MULTI_KLASS_DEF(unobf_klass_name, obf_klass_names) BEGIN_MULTI_KLASS_DEF_EX(unobf_klass_name, obf_klass_names, jni::empty)
 
 #define END_KLASS_DEF()	};
 #define END_KLASS_MEMBERS()	};
@@ -259,6 +271,10 @@ namespace jni
 	template<string_litteral_t... string_litteral_ts>
 	using string_litterals = tuple_litteral<string_litteral_ts...>;
 
+	template<string_litteral_t... string_litteral_ts>
+	using fgfgjghjghjuk = tuple_litteral<string_litteral_ts...>;
+
+
 	template<tuple_litteral tuple, size_t... is>
 	// std::index_sequence parameter used just to deduce is to 0,1,2,3,...
 	constexpr void tuple_litteral_foreach_impl(const auto& callable, std::index_sequence<is...>)
@@ -270,13 +286,6 @@ namespace jni
 	constexpr void tuple_litteral_foreach(const auto& callable)
 	{
 		tuple_litteral_foreach_impl<tuple>(callable, std::make_index_sequence<tuple_litteral_size(tuple)>{});
-	}
-
-	template<size_t i, size_t tot_size>
-	consteval auto space_or_empty_string_litteral()
-	{
-		if constexpr (i == tot_size - 1) return string_litteral("");
-		else return string_litteral(" ");
 	}
 
 	template<string_litteral_t... items, size_t... is>

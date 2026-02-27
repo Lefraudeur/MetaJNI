@@ -1,14 +1,14 @@
+#include "meta_jni.hpp"
+#include "mappings.hpp"
+
+#include <iostream>
+
 #ifdef _WIN32
     #include <Windows.h>
 #elif defined(__linux__)
     #include <X11/Xlib.h>
     #include <X11/Xutil.h>
 #endif
-
-#include "meta_jni.hpp"
-#include "mappings.hpp"
-#include <thread>
-#include <iostream>
 
 
 #ifdef __linux__
@@ -100,6 +100,8 @@ static void mainThread(void* dll)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+
+    //constexpr jni::string_litterals test{ "ha" , "be"};
 
     jni::shutdown();
     jvm->DetachCurrentThread();

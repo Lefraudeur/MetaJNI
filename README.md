@@ -1,4 +1,13 @@
-﻿# MetaJNI
+﻿This branch adds support for multi_klass, multi_method, multi_field, \
+allowing a klass/method/field to have multiple obfuscated names to resolve the jclass/jmethodID/jfieldID
+
+```
+```
+
+The way the jclass/jmethodID/jfieldID should be resolved is still unclear.
+
+
+# MetaJNI
 A header only JNI wrapper that makes using jni safer and easier.
 This branch uses cmake for the example and supports both Windows and Linux (you will have to install X11 dev library).
 C++ 20 required
