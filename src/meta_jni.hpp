@@ -30,9 +30,9 @@
 struct unobf_klass_name##_members; \
 using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>;
 
-#define MULTI_KLASS_DECLARATION(unobf_klass_name, obf_klass_names) \
+#define MULTI_KLASS_DECLARATION(unobf_klass_name, ...) \
 struct unobf_klass_name##_members; \
-using unobf_klass_name = jni::multi_klass<jni::string_litterals(obf_klass_names), unobf_klass_name##_members>;
+using unobf_klass_name = jni::multi_klass<jni::strs{__VA_ARGS__}, unobf_klass_name##_members>;
 
 #define BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, inherit_from) \
 struct unobf_klass_name##_members : public inherit_from##_members \
@@ -80,14 +80,14 @@ struct unobf_klass_name##_members : public inherit_from##_members \
 KLASS_DECLARATION(unobf_klass_name, obf_klass_name) \
 BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, inherit_from)
 
-#define BEGIN_MULTI_KLASS_DEF_EX(unobf_klass_name, obf_klass_names, inherit_from) \
-MULTI_KLASS_DECLARATION(unobf_klass_name, obf_klass_names) \
+#define BEGIN_MULTI_KLASS_DEF_EX(unobf_klass_name, inherit_from, ...) \
+MULTI_KLASS_DECLARATION(unobf_klass_name, __VA_ARGS__) \
 BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, inherit_from)
 
 #define BEGIN_KLASS_MEMBERS(unobf_klass_name) BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, jni::empty)
 #define BEGIN_KLASS_DEF(unobf_klass_name, obf_klass_name) BEGIN_KLASS_DEF_EX(unobf_klass_name, obf_klass_name, jni::empty)
 
-#define BEGIN_MULTI_KLASS_DEF(unobf_klass_name, obf_klass_names) BEGIN_MULTI_KLASS_DEF_EX(unobf_klass_name, obf_klass_names, jni::empty)
+#define BEGIN_MULTI_KLASS_DEF(unobf_klass_name, ...) BEGIN_MULTI_KLASS_DEF_EX(unobf_klass_name, jni::empty, __VA_ARGS__)
 
 #define END_KLASS_DEF()	};
 #define END_KLASS_MEMBERS()	};
@@ -347,6 +347,27 @@ namespace jni
 		return get_max<tuple_litteral_size(tuples)...>();
 	}
 
+	template<size_t... is> constexpr auto tuple_litteral_construct_impl(const auto& lambda, std::index_sequence<is...>)
+	{
+		return tuple_litteral{ lambda.template operator() < is > ()... };
+	}
+
+	template<size_t size>
+	constexpr auto tuple_litteral_construct(const auto& lambda)
+	{
+		return tuple_litteral_construct_impl(lambda, std::make_index_sequence<size>{});
+	}
+
+	template<size_t... is> constexpr void forloop_impl(const auto& lambda, std::index_sequence<is...>)
+	{
+		(lambda.template operator() < is > (), ...);
+	}
+
+	template<size_t size>
+	constexpr void forloop(const auto& lambda)
+	{
+		forloop_impl(lambda, std::make_index_sequence<size>{});
+	}
 
 
 
@@ -801,11 +822,12 @@ namespace jni
 			jfieldID new_id = nullptr;
 			if (owner_klass)
 			{
-				tuple_litteral_foreach<field_names>([&new_id, owner_klass]<size_t i>(const auto& field_name)
+				constexpr size_t max_size = tuple_litteral_get_max_size<field_names, get_signatures()>();
+				forloop<max_size>([&new_id, owner_klass]<size_t i>()
 				{
 					if (new_id) return;
 					constexpr string_litterals signatures = get_signatures();
-					new_id = get_env()->GetStaticFieldID(owner_klass, field_name, tuple_litteral_get_or_last<i>(signatures));
+					new_id = get_env()->GetStaticFieldID(owner_klass, tuple_litteral_get_or_last<i>(field_names), tuple_litteral_get_or_last<i>(signatures));
 				});
 
 				if (new_id) id = new_id;
@@ -956,11 +978,12 @@ namespace jni
 			jfieldID new_id = nullptr;
 			if (owner_klass)
 			{
-				tuple_litteral_foreach<field_names>([&new_id, owner_klass]<size_t i>(const auto& field_name)
+				constexpr size_t max_size = tuple_litteral_get_max_size<field_names, get_signatures()>();
+				forloop<max_size>([&new_id, owner_klass]<size_t i>()
 				{
 					if (new_id) return;
 					constexpr string_litterals signatures = get_signatures();
-					new_id = get_env()->GetFieldID(owner_klass, field_name, tuple_litteral_get_or_last<i>(signatures));
+					new_id = get_env()->GetFieldID(owner_klass, tuple_litteral_get_or_last<i>(field_names), tuple_litteral_get_or_last<i>(signatures));
 				});
 
 				if (new_id) id = new_id;
@@ -1101,8 +1124,9 @@ namespace jni
 
 		static consteval auto get_signatures()
 		{
-			return tuple_litteral_map<method_names>(
-			[]<size_t i, auto method_name>()
+			constexpr size_t max_size = tuple_litteral_get_max_size<get_signatures_for_type<method_return_type>(), get_signatures_for_type<method_parameters_type>()...>();
+			return tuple_litteral_construct<max_size>(
+			[]<size_t i>()
 			{
 				return concat< "(", tuple_litteral_get_or_last<i>(get_signatures_for_type<method_parameters_type>())..., ")", tuple_litteral_get_or_last<i>(get_signatures_for_type<method_return_type>()) >();
 			});
@@ -1120,11 +1144,12 @@ namespace jni
 			jmethodID new_id = nullptr;
 			if (owner_klass)
 			{
-				tuple_litteral_foreach<method_names>([&new_id, owner_klass]<size_t i>(const auto& field_name)
+				constexpr size_t max_size = tuple_litteral_get_max_size<method_names, get_signatures()>();
+				forloop<max_size>([&new_id, owner_klass]<size_t i>()
 				{
 					if (new_id) return;
 					constexpr string_litterals signatures = get_signatures();
-					new_id = get_env()->GetStaticMethodID(owner_klass, field_name, tuple_litteral_get_or_last<i>(signatures));
+					new_id = get_env()->GetStaticMethodID(owner_klass, tuple_litteral_get_or_last<i>(method_names), tuple_litteral_get_or_last<i>(signatures));
 				});
 
 				if (new_id) id = new_id;
@@ -1221,10 +1246,11 @@ namespace jni
 
 		static consteval auto get_signatures()
 		{
-			return tuple_litteral_map<method_names>(
-				[]<size_t i, auto method_name>()
+			constexpr size_t max_size = tuple_litteral_get_max_size<get_signatures_for_type<method_return_type>(), get_signatures_for_type<method_parameters_type>()...>();
+			return tuple_litteral_construct<max_size>(
+				[]<size_t i>()
 			{
-				return concat< "(", tuple_litteral_get<i>(get_signatures_for_type<method_parameters_type>())..., ")", tuple_litteral_get<i>(get_signatures_for_type<method_return_type>()) >();
+				return concat< "(", tuple_litteral_get_or_last<i>(get_signatures_for_type<method_parameters_type>())..., ")", tuple_litteral_get_or_last<i>(get_signatures_for_type<method_return_type>()) >();
 			});
 		}
 
@@ -1235,11 +1261,12 @@ namespace jni
 			jmethodID new_id = nullptr;
 			if (owner_klass)
 			{
-				tuple_litteral_foreach<method_names>([&new_id, owner_klass]<size_t i>(const auto& field_name)
+				constexpr size_t max_size = tuple_litteral_get_max_size<method_names, get_signatures()>();
+				forloop<max_size>([&new_id, owner_klass]<size_t i>()
 				{
 					if (new_id) return;
 					constexpr string_litterals signatures = get_signatures();
-					new_id = get_env()->GetMethodID(owner_klass, field_name, tuple_litteral_get_or_last<i>(signatures));
+					new_id = get_env()->GetMethodID(owner_klass, tuple_litteral_get_or_last<i>(method_names), tuple_litteral_get_or_last<i>(signatures));
 				});
 
 				if (new_id) id = new_id;

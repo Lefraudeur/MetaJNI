@@ -26,6 +26,7 @@ if i > N (if there is no posible signature at index i) then it will use the last
 Same resolution logic is used for methods.
 
 This implies that if there are more KlassA_names than fieldA_names (N > N2), fieldA won't be looked up using signatures which index is superior to N2
+Edit: this is not the case anymore, now loop over the indexes whatever has the most elements between fieldA_names and KlassA_names.
 
 This leads to some non intuitive subtilities, that will be hard to document. 
 
