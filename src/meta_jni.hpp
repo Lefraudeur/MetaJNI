@@ -180,7 +180,8 @@ namespace jni
 		if (!env) return nullptr;
 
 		std::atomic<jclass>& cached = jclass_cache<klass_type>::value;
-		if (jclass(cached)) return jclass(cached);
+		jclass cached_jclass = jclass(cached);
+		if (cached_jclass) return cached_jclass;
 
 		jclass found = env->FindClass(klass_type::get_name());
 		if (env->ExceptionCheck())
@@ -316,7 +317,7 @@ namespace jni
 
 		reference_type get_reference_type() const
 		{
-			return reference_type::GLOBAL;
+			return ref_type;
 		}
 		
 	private:
@@ -392,7 +393,7 @@ namespace jni
 
 		array new_global_ref() const
 		{
-			return array(this->get_jobject(), true);
+			return array({ this->get_jobject(), reference_type::GLOBAL });
 		}
 
 		static constexpr auto get_signature()

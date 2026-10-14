@@ -83,6 +83,8 @@ static void mainThread(void* dll)
         std::cout << clientBrand.to_string() << '\n';
         jni::array<maps::EntityPlayerSP> testArray = jni::array<maps::EntityPlayerSP>::create({});
         std::cout << "test array: " << jobject(testArray) << '\n';
+        jni::array<maps::EntityPlayerSP> g_testArray = testArray.new_global_ref();
+        std::cout << "test array global ref: " << jobject(g_testArray) << '\n';
 
         maps::WorldClient theWorld = theMinecraft.theWorld.get();
         std::vector<maps::EntityPlayer> playerEntities = jni::array<maps::EntityPlayer>(theWorld.playerEntities.get().toArray()).to_vector();
