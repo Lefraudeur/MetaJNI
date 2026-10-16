@@ -13,7 +13,7 @@ void modules::triggerbot::run(::cache& cache)
 	if (sword_only)
 	{
 		maps::Item item = cache.player.getMainHandStack().item.get();
-		if (item && !item.is_instance_of<maps::SwordItem>())
+		if (!item || !item.is_instance_of<maps::SwordItem>())
 		{
 			prev_attack_tick = -1;
 			return;

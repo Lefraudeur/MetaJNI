@@ -14,13 +14,12 @@
 #include <mutex>
 #include <functional>
 #include <atomic>
-#include "logger/logger.hpp"
 
 #ifdef NDEBUG
 	#define assertm(exp, msg) ;
 #else
 	#include <iostream>
-	#define assertm(exp, msg) if (!(exp)) { logger::error(msg); abort(); }
+	#define assertm(exp, msg) if (!(exp)) { std::cout << (msg) << '\n'; abort(); }
 #endif
 
 #define KLASS_DECLARATION(unobf_klass_name, obf_klass_name) \
@@ -46,13 +45,13 @@ struct unobf_klass_name##_members : public inherit_from##_members \
 	using constructor = jni::constructor<unobf_klass_name, method_parameters_type...>; \
 	\
 	\
-	unobf_klass_name##_members(jclass owner_klass, const jni::object_wrapper& o_wrapper) : \
-		inherit_from##_members(owner_klass, o_wrapper) \
+	unobf_klass_name##_members(const jni::object_wrapper& o_wrapper) : \
+		inherit_from##_members(o_wrapper) \
 	{ \
 	} \
 	\
-	unobf_klass_name##_members(jclass owner_klass, jni::object_wrapper&& o_wrapper) : \
-		inherit_from##_members(owner_klass, std::move(o_wrapper)) \
+	unobf_klass_name##_members(jni::object_wrapper&& o_wrapper) : \
+		inherit_from##_members(std::move(o_wrapper)) \
 	{ \
 	}
 
@@ -66,9 +65,6 @@ BEGIN_KLASS_MEMBERS_EX(unobf_klass_name, inherit_from)
 #define END_KLASS_DEF()	};
 #define END_KLASS_MEMBERS()	};
 
-// TODO: faster get_cached_jclass and copy owner_klass when possible instead of reresolving it
-// maybe per thread jclass cache ?
-// or maybe do not even store the owner_klass in each jclass at all, and add a way for the jni::method / jni::field to know to which jni::klass they belong
 
 namespace jni
 {
@@ -184,7 +180,8 @@ namespace jni
 		if (!env) return nullptr;
 
 		std::atomic<jclass>& cached = jclass_cache<klass_type>::value;
-		if (jclass(cached)) return jclass(cached);
+		jclass cached_jclass = jclass(cached);
+		if (cached_jclass) return cached_jclass;
 
 		jclass found = env->FindClass(klass_type::get_name());
 		if (env->ExceptionCheck())
@@ -320,7 +317,7 @@ namespace jni
 
 		reference_type get_reference_type() const
 		{
-			return reference_type::GLOBAL;
+			return ref_type;
 		}
 		
 	private:
@@ -336,12 +333,12 @@ namespace jni
 		empty_members(const empty_members& other) = delete; // we must never copy the jni::field / jni::method, as they hold a reference to *this
 		empty_members(empty_members&& other) = delete;
 
-		empty_members(jclass owner_klass, const object_wrapper& o_wrapper) :
+		empty_members(const object_wrapper& o_wrapper) :
 			object_wrapper(o_wrapper)
 		{
 		}
 
-		empty_members(jclass owner_klass, object_wrapper&& o_wrapper) :
+		empty_members(object_wrapper&& o_wrapper) :
 			object_wrapper(std::move(o_wrapper))
 		{
 		}
@@ -377,7 +374,7 @@ namespace jni
 	public:
 		explicit array(reference_type ref_type = reference_type::LOCAL) : array(jni::object_wrapper{ ref_type }) {}
 		explicit array(const object_wrapper& other) : object_wrapper(other) {};
-		explicit array(object_wrapper&& other) : object_wrapper(other) {};
+		explicit array(object_wrapper&& other) : object_wrapper(std::move(other)) {};
 
 		array(const array& other) : array((const object_wrapper&)other) {}
 		array(array&& other) noexcept : array(static_cast<object_wrapper&&>(other)) {}
@@ -396,7 +393,7 @@ namespace jni
 
 		array new_global_ref() const
 		{
-			return array(this->get_jobject(), true);
+			return array({ this->get_jobject(), reference_type::GLOBAL });
 		}
 
 		static constexpr auto get_signature()
@@ -592,12 +589,6 @@ namespace jni
 			return get_signature_for_type<field_type>();
 		}
 
-		operator jfieldID() const
-		{
-			init_id();
-			return id;
-		}
-
 		static void init_id()
 		{
 			if (jfieldID(id)) return;
@@ -609,6 +600,12 @@ namespace jni
 				if (new_id) id = new_id;
 			}
 			assertm(new_id, (std::string_view)(concat<"failed to find fieldID: ", get_name(), " ", get_signature()>()));
+		}
+
+		operator jfieldID() const
+		{
+			init_id();
+			return id;
 		}
 
 		static_field() = default;
@@ -731,13 +728,7 @@ namespace jni
 			return get_signature_for_type<field_type>();
 		}
 
-		operator jfieldID() const
-		{
-			return id;
-		}
-
-		field(const empty_members& m) :
-			m(m)
+		static void init_id()
 		{
 			if (jfieldID(id)) return;
 			jclass owner_klass = get_cached_jclass<o_klass>();
@@ -748,6 +739,17 @@ namespace jni
 				if (new_id) id = new_id;
 			}
 			assertm(new_id, (std::string_view)(concat<"failed to find fieldID: ", get_name(), " ", get_signature()>()));
+		}
+
+		operator jfieldID() const
+		{
+			init_id();
+			return id;
+		}
+
+		field(const empty_members& m) :
+			m(m)
+		{
 		}
 
 		field(const field& other) = delete; // make sure field won't be copied (we store a empty_members reference which must not be copied)
@@ -761,6 +763,7 @@ namespace jni
 
 		void set(const field_type& new_value)
 		{
+			init_id();
 			assertm(m.get_jobject(), (std::string_view)(concat<"called set on a non static field with null object_instance\n class: ", o_klass::get_name(), " field: ", get_name(), " ", get_signature()>()));
 			jclass owner_klass = get_cached_jclass<o_klass>();
 			if (!jfieldID(id) || !owner_klass || !m.get_jobject()) return;
@@ -795,6 +798,7 @@ namespace jni
 
 		auto get() const
 		{
+			init_id();
 			assertm(m.get_jobject(), (std::string_view)(concat<"called get on a non static field with null object_instance\n class: ", o_klass::get_name(), " field: ", get_name(), " ", get_signature()>()));
 			jclass owner_klass = get_cached_jclass<o_klass>();
 			bool not_valid = (!jfieldID(id) || !owner_klass || !m.get_jobject());
@@ -967,11 +971,6 @@ namespace jni
 	class method
 	{
 	public:
-		operator jmethodID() const
-		{
-			return id;
-		}
-
 		static constexpr auto get_name()
 		{
 			return method_name;
@@ -982,8 +981,7 @@ namespace jni
 			return concat<"(", get_signature_for_type<method_parameters_type>()..., ")", get_signature_for_type<method_return_type>()>();
 		}
 
-		method(const empty_members& m) :
-			m(m)
+		static void init_id()
 		{
 			if (jmethodID(id)) return;
 			jclass owner_klass = get_cached_jclass<o_klass>();
@@ -996,6 +994,17 @@ namespace jni
 			assertm(new_id, (const char*)(concat<"failed to find methodID: ", get_name(), " ", get_signature()>()));
 		}
 
+		operator jmethodID() const
+		{
+			init_id();
+			return id;
+		}
+
+		method(const empty_members& m) :
+			m(m)
+		{
+		}
+
 		method(const method& other) = delete; // make sure method won't be copied (we store a empty_members reference which must not be copied)
 		method(method&& other) = delete;
 
@@ -1006,6 +1015,7 @@ namespace jni
 
 		auto call(const method_parameters_type&... method_parameters) const
 		{
+			init_id();
 			assertm(m.get_jobject(), (std::string_view)(concat<"called call on a non static method with null object_instance, method: ", get_name(), " ", get_signature()>()));
 			jclass owner_klass = get_cached_jclass<o_klass>();
 			bool not_valid = !jmethodID(id) || !owner_klass || !m.get_jobject();
@@ -1088,8 +1098,8 @@ namespace jni
 	public:
 
 		explicit klass(reference_type ref_type = reference_type::LOCAL) : klass(jni::object_wrapper{ ref_type }) {}
-		explicit klass(const object_wrapper& other) : members_type(get_cached_jclass<klass>(), other) {} // very important to not copy jni::field and method
-		explicit klass(object_wrapper&& other) : members_type(get_cached_jclass<klass>(), std::move(other)) {}
+		explicit klass(const object_wrapper& other) : members_type(other) {} // very important to not copy jni::field and method
+		explicit klass(object_wrapper&& other) : members_type(std::move(other)) {}
 
 		klass(const klass& other) : klass((const object_wrapper&)other) {}
 		klass(klass&& other) noexcept : klass(static_cast<object_wrapper&&>(other)) {}

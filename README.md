@@ -1,6 +1,6 @@
 # base Lunar 1.20.4
 
-insert to open the gui \
+press `insert` to open the gui \
 right click module to show options \
 end key to uninject
 
