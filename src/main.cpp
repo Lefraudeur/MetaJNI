@@ -7,7 +7,7 @@ int main(int argc, const char* argv[])
 {
 	if (argc < 4)
 	{
-		std::cerr << "usage: " << argv[0] << " <tiny_mapping_file> <obfuscated_namespace> <unobfuscated_namespace>\n";
+		std::cerr << "usage: " << argv[0] << " <tiny_mapping_file> <obfuscated_namespace> <unobfuscated_namespace>" << std::endl;
 		return -1;
 	}
 
@@ -16,7 +16,11 @@ int main(int argc, const char* argv[])
 	const char* const unobfuscated_namespace = argv[3];
 
 	std::ifstream mapping(tiny_mappings_file, std::ifstream::binary);
-	if (!mapping) return -1;
+	if (!mapping)
+	{
+		std::cerr << "failed to open tiny_mapping_file" << tiny_mappings_file << std::endl;
+		return -1;
+	}
 
 	mapping.seekg(0, std::ios::end);
 	size_t mapping_size = mapping.tellg();
@@ -29,7 +33,7 @@ int main(int argc, const char* argv[])
 	if (!parser) return -1;
 
 	mapping_writer writer(parser);
-	// writer.write();
+	// writer.write(); // write each klass in seperate file in different folders based on package name (unfinished)
 
 	std::ofstream file("mappings_auto.hpp");
 	writer.write(file);

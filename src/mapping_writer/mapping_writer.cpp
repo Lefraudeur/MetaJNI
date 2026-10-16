@@ -319,14 +319,38 @@ bool mapping_writer::write(std::ostream& output)
 			ns << "	BEGIN_KLASS_MEMBERS(" << name << ")\n";
 			for (const klass::field& f : k.fields)
 			{
-				ns << "		jni::field<" << f.type->to_string() << ", \"" << f.obfuscated << "\", " << (f.is_static ? "jni::STATIC" : "jni::NOT_STATIC") << "> " << check_duplicates(klass::filter(f.name), duplicates) << "{ *this };\n";
+				// metaJNNI1
+				// ns << "		jni::field<" << f.type->to_string() << ", \"" << f.obfuscated << "\", " << (f.is_static ? "jni::STATIC" : "jni::NOT_STATIC") << "> " << check_duplicates(klass::filter(f.name), duplicates) << "{ *this };\n";
+
+				// metaJNI2
+				ns << "		" << (f.is_static ? "inline static static_field<" : "field<")
+					<< f.type->to_string() << ", \"" 
+					<< f.obfuscated
+					<< "\"> " 
+					<< check_duplicates(klass::filter(f.name), duplicates) 
+					<< "{ " 
+					<< (f.is_static ? "" : "*this")
+					<<" };\n";
 			}
 			for (const klass::method& m : k.methods)
 			{
 				std::string parameters_str{};
 				for (const std::unique_ptr<klass::type>& p : m.parameters)
 					parameters_str += ", " + p->to_string();
-				ns << "		jni::method<" << m.return_type->to_string() << ", \"" << m.obfuscated << "\", " << (m.is_static ? "jni::STATIC" : "jni::NOT_STATIC") << parameters_str << "> " << check_duplicates(klass::filter(m.name), duplicates) << "{ *this };\n";
+
+				// metaJNI1
+				// ns << "		jni::method<" << m.return_type->to_string() << ", \"" << m.obfuscated << "\", " << (m.is_static ? "jni::STATIC" : "jni::NOT_STATIC") << parameters_str << "> " << check_duplicates(klass::filter(m.name), duplicates) << "{ *this };\n";
+
+				// metaJNI2
+				ns << "		" << (m.is_static ? "inline static static_method<" : "method<")
+					<< m.return_type->to_string() << ", \"" 
+					<< m.obfuscated << "\"" 
+					<< parameters_str 
+					<< "> " 
+					<< check_duplicates(klass::filter(m.name), duplicates) 
+					<< "{ "
+					<< (m.is_static ? "" : "*this")
+					<< " };\n";
 			}
 			ns << "	END_KLASS_MEMBERS()\n";
 		}
